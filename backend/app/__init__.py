@@ -1,7 +1,8 @@
 import os
 from flask import Flask
 from .models import db
-from config import Config   
+from config import Config  
+from app.routes import routes_bp 
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
@@ -20,8 +21,6 @@ def create_app():
         db.create_all()
 
     #  route de test
-    @app.route('/hello')
-    def hello():
-        return "Hello, World!"
+    app.register_blueprint(routes_bp, url_prefix="/api")
 
     return app
