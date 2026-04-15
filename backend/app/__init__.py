@@ -2,6 +2,7 @@ import os
 from flask import Flask
 from .models import db
 from config import Config   
+from flask_cors import CORS 
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
@@ -18,10 +19,11 @@ def create_app():
     #  créer les tables
     with app.app_context():
         db.create_all()
+    #  2. activer CORS pour que React puisse appeler Flask
+    CORS(app, origins=["http://localhost:5173"])
 
-    #  route de test
-    @app.route('/hello')
-    def hello():
-        return "Hello, World!"
+    from app.routes.auth import auth
+    app.register_blueprint(auth)
+
 
     return app
