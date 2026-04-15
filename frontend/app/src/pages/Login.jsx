@@ -46,7 +46,7 @@ export default function LoginPage() {
       <div style={{ width:"50%", background:"#9dabca", color:"#fff", display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"48px" }}>
         <div style={{ fontSize:"20px", fontWeight:"700" }}>🛡️ AnalyseTransaction IA</div>
         <div>
-          <h1 style={{ fontSize:"36px", fontWeight:"800", marginBottom:"16px" }}>
+          <h1 style={{ color:"#3b82f6",fontSize:"36px", fontWeight:"800", marginBottom:"16px" }}>
             Protégez vos clients<br />
             <span style={{ color:"#3b82f6" }}>en temps réel.</span>
           </h1>
@@ -62,7 +62,7 @@ export default function LoginPage() {
             ))}
           </div>
         </div>
-        <p style={{ fontSize:"13px", color:"#475569" }}>© 2025 FraudShield Pro</p>
+        <p style={{ fontSize:"13px", color:"#475569" }}>© 2026 AnalyseTransaction Pro</p>
       </div>
 
       {/* Droite */}
