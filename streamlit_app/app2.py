@@ -63,7 +63,6 @@ with st.form("transaction_form"):
         )
 
     submitted = st.form_submit_button("Analyze Transaction")
-
 # ==============================
 # Prediction
 # ==============================

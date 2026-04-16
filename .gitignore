@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.db
+.vite/
+node_modules/
+__pycache__/
+*.pyc
+*.db
+.vite/
+node_modules/

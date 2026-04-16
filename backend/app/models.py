@@ -8,15 +8,52 @@ db = SQLAlchemy()
 class Transaction(db.Model):
     __tablename__ = 'transactions'
     id_transaction = db.Column(db.Integer, primary_key=True)
-    id_client = db.Column(db.Integer, db.ForeignKey('clients.id_client'), nullable=False)
-    montant = db.Column(db.Float, nullable=False)
-    devise = db.Column(db.String(10), nullable=False)
-    type_transaction = db.Column(db.String(50), nullable=False)
-    localisation = db.Column(db.String(100))
-    date_transaction = db.Column(db.DateTime, default=datetime.utcnow)
-    statut = db.Column(db.String(20), default='Normal')
 
-    fraudes_detectees = db.relationship('FraudeDetectee', backref='transaction', lazy=True)
+    # relation client
+    id_client = db.Column(
+        db.Integer,
+        db.ForeignKey('clients.id_client'),
+        nullable=False
+    )
+
+    # infos transaction
+    transaction_id = db.Column(db.String(50))
+    montant = db.Column(db.Float, nullable=False)
+    transaction_hour = db.Column(db.Integer)
+    date_transaction = db.Column(
+        db.DateTime,
+        default=datetime.utcnow
+    )
+    # localisation
+    city = db.Column(db.String(100))
+    country = db.Column(db.String(100))
+
+    # features modèle ML
+    device_trust_score = db.Column(db.Float)
+    velocity_last_24h = db.Column(db.Integer)
+    cardholder_age = db.Column(db.Integer)
+    foreign_transaction = db.Column(db.Integer)
+    location_mismatch = db.Column(db.Integer)
+    merchant_category = db.Column(db.String(50))
+      # résultat modèle
+    prediction = db.Column(db.Integer)
+    risk_score = db.Column(db.Float)
+    risk_level = db.Column(db.String(20))
+
+    # statut workflow
+    statut = db.Column(
+        db.String(20),
+        default='En attente'
+    )
+
+    # signaux d'alerte
+    alert_signals = db.Column(db.Text)
+     # relation fraude
+    fraudes_detectees = db.relationship(
+        'FraudeDetectee',
+        backref='transaction',
+        lazy=True
+    )
 
 
 class FraudeDetectee(db.Model):
@@ -67,11 +104,15 @@ class Statistique(db.Model):
 class Client(db.Model):
     __tablename__ = 'clients'
     id_client = db.Column(db.Integer, primary_key=True)
-    nom = db.Column(db.String(50))
-    prenom = db.Column(db.String(50))
-    email = db.Column(db.String(120), unique=True)
-    telephone = db.Column(db.String(20))
+
+    nom = db.Column(db.String(50), nullable=False)
+    prenom = db.Column(db.String(50), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    telephone = db.Column(db.String(20), nullable=False)
+
+    ville = db.Column(db.String(50))
     pays = db.Column(db.String(50))
+
     date_creation = db.Column(db.DateTime, default=datetime.utcnow)
 
     transactions = db.relationship('Transaction', backref='client', lazy=True)

@@ -1,7 +1,12 @@
+
 from flask import request, jsonify
 from app.routes import routes_bp
 from app.services.ml_service import predict_transaction
-from app.models import Transaction
+from http import client
+from app.models import Transaction, Client
+from app import db
+from datetime import datetime
+
 
 @routes_bp.route("/transactions/analyze", methods=["POST"])
 def analyze_transaction():
@@ -62,7 +67,6 @@ def analyze_transaction():
      # 5. sauvegarder DB
     db.session.add(transaction)
     db.session.commit()
-
     return jsonify(result), 200
 @routes_bp.route("/transactions", methods=["GET"])
 def get_transactions():
@@ -80,5 +84,4 @@ def get_transactions():
             "date_transaction": t.date_transaction.strftime("%Y-%m-%d %H:%M:%S") if t.date_transaction else None,
             "statut": t.statut
         })
-
     return jsonify(result), 200
