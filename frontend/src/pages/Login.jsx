@@ -44,7 +44,7 @@ export default function LoginPage() {
 
       {/* Gauche */}
       <div style={{ width:"50%", background:"#0f172a", color:"#fff", display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"48px" }}>
-        <div style={{ fontSize:"20px", fontWeight:"700" }}>🛡️ FraudShield Pro</div>
+        <div style={{ fontSize:"20px", fontWeight:"700" }}>🛡️ FraudShield </div>
         <div>
           <h1 style={{ fontSize:"36px", fontWeight:"800", marginBottom:"16px" }}>
             Protégez vos clients<br />
