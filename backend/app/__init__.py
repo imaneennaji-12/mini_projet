@@ -1,5 +1,6 @@
 import os
 from flask import Flask
+from flask_cors import CORS
 from .models import db
 from config import Config  
 from app.routes import routes_bp 
@@ -15,7 +16,7 @@ def create_app():
 
     #  initialiser la base de données
     db.init_app(app)
-
+    CORS(app)
     #  créer les tables
     with app.app_context():
         db.create_all()
