@@ -43,18 +43,20 @@ export default function LoginPage() {
     <div style={{ display:"flex", minHeight:"100vh", fontFamily:"sans-serif" }}>
 
       {/* Gauche */}
-      <div style={{ width:"50%", background:"#0f172a", color:"#fff", display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"48px" }}>
-        <div style={{ fontSize:"20px", fontWeight:"700" }}>🛡️ FraudShield Pro</div>
+      <div style={{ width:"50%", background:"linear-gradient(135deg, hsl(222, 47%, 11%) 0%, hsl(214, 55%, 22%) 100%)", color:"#fff", display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"48px" ,alignItems: "flex-start",}}>
+        <div style={{ fontSize:"20px", fontWeight:"700" }}>🛡️ AnalyseTransaction IA </div>
         <div>
-          <h1 style={{ fontSize:"36px", fontWeight:"800", marginBottom:"16px" }}>
-            Protégez vos clients<br />
-            <span style={{ color:"#3b82f6" }}>en temps réel.</span>
+          <h1 style={{ color:"#ebeef2",fontSize:"36px", fontWeight:"800", marginBottom:"16px",textAlign: "left"}}>
+            Protégez vos clients
+            <br/>
+            <br/><span style={{ color:"#f3f5f7" , textAlign: "left"}}>en temps réel.</span>
           </h1>
-          <p style={{ color:"#94a3b8", fontSize:"16px", lineHeight:"1.6" }}>
+          <p style={{ color:"#94a3b8", fontSize:"16px", lineHeight:"1.6",textAlign: "left" }}>
             Plateforme de détection de fraude bancaire alimentée par l'IA.
+            Surveillez, analysez et agissez instantanément sur chaque transaction suspecte.
           </p>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"24px", marginTop:"32px" }}>
-            {[{ label:"Précision", value:"99.3%" }, { label:"Fraudes bloquées", value:"43/sem" }, { label:"Économies", value:"387K€" }].map((s) => (
+            {[{ label:"Précision", value:"93.9%" }, { label:"Fraudes bloquées", value:"+1000" }, { label:"Économies", value:"+1000€" }].map((s) => (
               <div key={s.label}>
                 <div style={{ fontSize:"24px", fontWeight:"700", color:"#3b82f6" }}>{s.value}</div>
                 <div style={{ fontSize:"13px", color:"#64748b" }}>{s.label}</div>
@@ -62,7 +64,7 @@ export default function LoginPage() {
             ))}
           </div>
         </div>
-        <p style={{ fontSize:"13px", color:"#475569" }}>© 2025 FraudShield Pro</p>
+        <p style={{ fontSize:"13px", color:"#475569" }}>© 2026 AnalyseTransaction IA </p>
       </div>
 
       {/* Droite */}
