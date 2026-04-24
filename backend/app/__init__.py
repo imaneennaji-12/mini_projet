@@ -1,31 +1,34 @@
 import os
-from flask import Flask, app
+from flask import Flask
 from flask_cors import CORS
+from flask_migrate import Migrate
 from .models import db
-from config import Config  
-from app.routes import routes_bp  
+from config import Config
+from app.routes import routes_bp
 from app.routes.auth import auth
+from app.routes.Dashboord import dashboard
 
+migrate = Migrate()
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
 
-    # Charger la configuration depuis config.py
+    # Charger la configuration
     app.config.from_object(Config)
 
-    #  créer le dossier instance
+    # Créer le dossier instance
     os.makedirs(app.instance_path, exist_ok=True)
 
-    #  initialiser la base de données
+    # Initialiser la base
     db.init_app(app)
-    #  créer les tables
-    with app.app_context():
-        db.create_all()
-    #  2. activer CORS pour que React puisse appeler Flask
+    migrate.init_app(app, db)
+
+    # Activer CORS
     CORS(app, origins=["http://localhost:5173"])
 
+    # Enregistrer les blueprints
     app.register_blueprint(auth)
-
+    app.register_blueprint(dashboard)
     app.register_blueprint(routes_bp, url_prefix="/api")
 
     return app

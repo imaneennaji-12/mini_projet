@@ -28,7 +28,7 @@ def predict_transaction(data):
     })
 
     prediction = int(model.predict(input_data)[0])
-    probability = float(model.predict_proba(input_data)[0][1])
+    probability = round(float(model.predict_proba(input_data)[0][1]), 2)
 
     status = "FRAUD" if prediction == 1 else "LEGITIMATE"
     shap_data = []

@@ -2,6 +2,8 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
+from streamlit import secrets
+
 db = SQLAlchemy()
 
 
@@ -17,7 +19,6 @@ class Transaction(db.Model):
     )
 
     # infos transaction
-    transaction_id = db.Column(db.String(50))
     montant = db.Column(db.Float, nullable=False)
     transaction_hour = db.Column(db.Integer)
     date_transaction = db.Column(
@@ -54,53 +55,44 @@ class Transaction(db.Model):
         backref='transaction',
         lazy=True
     )
+    decisions_humaines = db.relationship(
+    'DecisionHumaine', backref='transaction',
+    lazy=True, cascade='all, delete-orphan'
+    )
+    investigations = db.relationship(
+    'Investigation', backref='transaction', lazy=True
+    )
+    notifications = db.relationship(
+    'NotificationClient', backref='transaction', lazy=True)
+
+class User(db.Model):
+    __tablename__ = 'users'
+    id_user       = db.Column(db.Integer, primary_key=True)
+    nom            = db.Column(db.String(100), nullable=False)
+    email          = db.Column(db.String(120), unique=True, nullable=False)
+    role           = db.Column(db.String(30), default='analyste')  # 'admin', 'analyste'
+    mot_de_passe_hash = db.Column(db.String(256))
+    actif          = db.Column(db.Boolean, default=True)
+    date_creation  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    decisions = db.relationship('DecisionHumaine', backref='user', lazy=True)
 
 
-class FraudeDetectee(db.Model):
-    __tablename__ = 'fraudes_detectees'
-    id_fraude = db.Column(db.Integer, primary_key=True)
+class DecisionHumaine(db.Model):
+    __tablename__ = 'decisions_humaines'
+    id             = db.Column(db.Integer, primary_key=True)
+
     id_transaction = db.Column(db.Integer, db.ForeignKey('transactions.id_transaction'), nullable=False)
-    prediction = db.Column(db.Integer, nullable=False)  # 1 = Fraude, 0 = Normale
-    probabilite = db.Column(db.Float)
-    modele_utilise = db.Column(db.String(100))
-    date_detection = db.Column(db.DateTime, default=datetime.utcnow)
+    id_user       = db.Column(db.Integer, db.ForeignKey('users.id_user'), nullable=False)
 
-    alertes = db.relationship('Alerte', backref='fraude', lazy=True)
-
-
-class Alerte(db.Model):
-    __tablename__ = 'alertes'
-    id_alerte = db.Column(db.Integer, primary_key=True)
-    id_fraude = db.Column(db.Integer, db.ForeignKey('fraudes_detectees.id_fraude'), nullable=False)
-    niveau_risque = db.Column(db.String(20))
-    statut = db.Column(db.String(50), default='En attente')
-    message = db.Column(db.Text)
-    date_alerte = db.Column(db.DateTime, default=datetime.utcnow)
-
-    decisions = db.relationship('DecisionAdmin', backref='alerte', lazy=True)
-    investigations = db.relationship('Investigation', backref='alerte', lazy=True)
+    # 'approuvé' ou 'refusé'
+    decision      = db.Column(db.String(20), nullable=False)
+    commentaire    = db.Column(db.Text)
+    date_decision  = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-class DecisionAdmin(db.Model):
-    __tablename__ = 'decisions_admin'
-    id_decision = db.Column(db.Integer, primary_key=True)
-    id_alerte = db.Column(db.Integer, db.ForeignKey('alertes.id_alerte'), nullable=False)
-    id_user = db.Column(db.Integer, db.ForeignKey('users.id_user'), nullable=False)
-    decision = db.Column(db.String(20))
-    commentaire = db.Column(db.Text)
-    date_decision = db.Column(db.DateTime, default=datetime.utcnow)
 
-
-class Statistique(db.Model):
-    __tablename__ = 'statistiques'
-    id_stat = db.Column(db.Integer, primary_key=True)
-    total_transactions = db.Column(db.Integer)
-    total_fraudes = db.Column(db.Integer)
-    taux_fraude = db.Column(db.Float)
-    periode = db.Column(db.String(20))
-    date_generation = db.Column(db.DateTime, default=datetime.utcnow)
-
-
+    # Modèles pour clients
 class Client(db.Model):
     __tablename__ = 'clients'
     id_client = db.Column(db.Integer, primary_key=True)
@@ -120,35 +112,63 @@ class Client(db.Model):
     investigations = db.relationship('Investigation', backref='client', lazy=True)
 
 
-class User(db.Model):
-    __tablename__ = 'users'
-    id_user = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True)
-    email = db.Column(db.String(120), unique=True)
-    password = db.Column(db.String(200))
-    role = db.Column(db.String(20))
-    date_creation = db.Column(db.DateTime, default=datetime.utcnow)
+class FraudeDetectee(db.Model):
+    __tablename__ = 'fraudes_detectees'
+    id                  = db.Column(db.Integer, primary_key=True,autoincrement=True)
 
-    decisions = db.relationship('DecisionAdmin', backref='user', lazy=True)
+    id_transaction      = db.Column(db.Integer, db.ForeignKey('transactions.id_transaction'), nullable=False)
 
+    date_detection      = db.Column(db.DateTime, default=datetime.utcnow)
+    confirme_par_agent  = db.Column(db.Boolean, default=False)
+    confirme_par_client = db.Column(db.Boolean, default=False)
 
-class Investigation(db.Model):
-    __tablename__ = 'investigations'
-    id_investigation = db.Column(db.Integer, primary_key=True)
-    id_alerte = db.Column(db.Integer, db.ForeignKey('alertes.id_alerte'), nullable=False)
-    id_client = db.Column(db.Integer, db.ForeignKey('clients.id_client'), nullable=False)
-    message_admin = db.Column(db.Text)
-    reponse_client = db.Column(db.Text)
-    statut = db.Column(db.String(20), default='En cours')
-    date_demande = db.Column(db.DateTime, default=datetime.utcnow)
-    date_reponse = db.Column(db.DateTime)
+    # 'carte_volée', 'identité_usurpée', 'phishing', 'inconnu'
+    type_fraude         = db.Column(db.String(50), default='inconnu')
+    montant_fraude      = db.Column(db.Float)
 
-
+# ────────────────────────────────────────────
+# TABLE: NotificationClient (log des emails envoyés)
+# ────────────────────────────────────────────
 class NotificationClient(db.Model):
     __tablename__ = 'notifications_client'
-    id_notification = db.Column(db.Integer, primary_key=True)
-    id_client = db.Column(db.Integer, db.ForeignKey('clients.id_client'), nullable=False)
-    type = db.Column(db.String(50))
-    message = db.Column(db.Text)
-    statut = db.Column(db.String(20), default='Envoyé')
-    date_envoi = db.Column(db.DateTime, default=datetime.utcnow)
+    id             = db.Column(db.Integer, primary_key=True)
+
+    id_client      = db.Column(db.Integer, db.ForeignKey('clients.id_client'), nullable=False)
+    id_transaction = db.Column(db.Integer, db.ForeignKey('transactions.id_transaction'))
+
+    # 'investigation', 'alerte_fraude', 'transaction_validée'
+    type_notif     = db.Column(db.String(50))
+    canal          = db.Column(db.String(20), default='email')  # 'email', 'sms'
+    statut_envoi   = db.Column(db.String(20), default='envoyé') # 'envoyé', 'échec'
+    date_envoi     = db.Column(db.DateTime, default=datetime.utcnow)
+class Investigation(db.Model):
+    __tablename__ = 'investigations'
+    id_investigation            = db.Column(db.Integer, primary_key=True)
+
+    id_transaction = db.Column(db.Integer, db.ForeignKey('transactions.id_transaction'), nullable=False)
+    id_client      = db.Column(db.Integer, db.ForeignKey('clients.id_client'), nullable=False)
+
+    # token unique pour les liens OUI/NON dans l'email
+    token          = db.Column(db.String(100), unique=True,
+                               default=lambda: secrets.token_urlsafe(32))
+    token_expiry   = db.Column(db.DateTime)
+
+    # 'en_attente', 'confirmé_client', 'refusé_client', 'expiré'
+    statut_inv     = db.Column(db.String(30), default='en_attente')
+    reponse_client = db.Column(db.String(20))   # 'oui_cest_moi' | 'non_fraude'
+    date_reponse   = db.Column(db.DateTime)
+    date_creation  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    reponses = db.relationship('ReponseClient', backref='investigation', lazy=True)
+# ────────────────────────────────────────────
+# TABLE: ReponseClient (trace du clic client)
+# ────────────────────────────────────────────
+class ReponseClient(db.Model):
+    __tablename__ = 'reponses_client'
+    id               = db.Column(db.Integer, primary_key=True)
+
+    id_investigation = db.Column(db.Integer, db.ForeignKey('investigations.id_investigation'), nullable=False)
+
+    reponse          = db.Column(db.String(20))   # 'oui' ou 'non'
+    date_reponse     = db.Column(db.DateTime, default=datetime.utcnow)
+    ip_client        = db.Column(db.String(50)) 

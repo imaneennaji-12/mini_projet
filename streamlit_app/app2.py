@@ -37,7 +37,7 @@ with st.form("transaction_form"):
     col_id1, col_id2 = st.columns(2)
 
     with col_id1:
-        transaction_id = st.text_input("Transaction ID")
+        id_transaction = st.text_input("Transaction ID")
 
     with col_id2:
         client_id = st.text_input("Client ID")
@@ -69,12 +69,15 @@ with st.form("transaction_form"):
 
 if submitted:
 
-    if transaction_id == "" or client_id == "":
+    if id_transaction == "" or client_id == "":
         st.warning("Please enter Transaction ID and Client ID.")
     else:
 
         # Data for ML model (IDs NOT included)
         payload = {
+            "id_transaction": id_transaction,
+            "id_client": client_id,
+
             "amount": amount,
             "transaction_hour": transaction_hour,
             "device_trust_score": device_trust_score,
@@ -105,8 +108,8 @@ if submitted:
                 st.success(f"Transaction Legitimate - Risk Score: {probability:.2%}")
 
             transaction_record = {
-                "transaction_id": transaction_id,
-                "client_id": client_id,
+                "id_transaction": id_transaction,
+                "id_client": client_id,
                 "timestamp": str(datetime.now()),
                 "amount": amount,
                 "prediction": status,
@@ -119,43 +122,3 @@ if submitted:
 
         else:
             st.error("Error while connecting to Flask API.")
-
-        
-
-        st.markdown("---")
-        st.subheader("Prediction Result")
-        
-
-        if prediction == 1:
-            st.error(f"Fraud Detected - Risk Score: {probability:.2%}")
-            status = "FRAUD"
-        else:
-            st.success(f"Transaction Legitimate - Risk Score: {probability:.2%}")
-            status = "LEGITIMATE"
-        # ==============================
-        # SHAP EXPLANATION
-        # ==============================
-        st.markdown("---")
-        st.subheader("Model Explanation (SHAP)")
-
-        if shap_explanation:
-           st.json(shap_explanation)
-        else:
-           st.info("SHAP explanation not available.")
-        # ==============================
-        # Simulated Database Record
-        # ==============================
-
-        transaction_record = {
-            "transaction_id": transaction_id,
-            "client_id": client_id,
-            "timestamp": datetime.now(),
-            "amount": amount,
-            "prediction": status,
-            "risk_score": float(probability)
-        }
-
-        st.markdown("---")
-        st.subheader("Simulated Database Record")
-
-        st.json(transaction_record)

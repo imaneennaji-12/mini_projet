@@ -5,8 +5,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import jwt
 import datetime
 from decouple import config
+from app.routes import auth
 
-auth = Blueprint("auth", __name__)
 
 SECRET_KEY = config("SECRET_KEY")
 
@@ -16,18 +16,18 @@ SECRET_KEY = config("SECRET_KEY")
 def seed():
     data     = request.get_json()
     email    = data.get("email")
-    password = data.get("password")
+    mot_de_passe_hash = data.get("password")
     role     = data.get("role", "analyst")
     username = data.get("username")
-    if not email or not password:
-        return jsonify({"message": "email et password requis"}), 400
+    if not email or not mot_de_passe_hash:
+        return jsonify({"message": "email et mot de passe requis"}), 400
 
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Utilisateur déjà existant"}), 409
 
     user = User(
         email=email,
-        password=generate_password_hash(password),
+        mot_de_passe_hash=generate_password_hash(mot_de_passe_hash),
         username=username,
         role=role
     )
@@ -42,14 +42,14 @@ def seed():
 def login():
     data     = request.get_json()
     email    = data.get("email")
-    password = data.get("password")
+    mot_de_passe_hash= data.get("password")
 
     user = User.query.filter_by(email=email).first()
 
     if not user:
         return jsonify({"message": "Utilisateur introuvable"}), 404
 
-    if not check_password_hash(user.password, password):
+    if not check_password_hash(user.mot_de_passe_hash, mot_de_passe_hash):
         return jsonify({"message": "Mot de passe incorrect"}), 401
 
     token = jwt.encode({
