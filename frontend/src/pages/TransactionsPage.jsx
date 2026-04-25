@@ -9,6 +9,13 @@ export default function TransactionsPage() {
   const [expandedId, setExpandedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showInvestigationForm, setShowInvestigationForm] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [investigationForm, setInvestigationForm] = useState({
+    to: "",
+    subject: "",
+    message: "",
+  });
 
   useEffect(() => {
     fetch("http://127.0.0.1:5000/api/transactions")
@@ -130,10 +137,10 @@ export default function TransactionsPage() {
       cls = "risk-low";
       label = "Faible";
     }
-
+    const score100 = score != null ? Math.round(score * 100) : 0;
     return (
       <span className={`badge badge-risk ${cls}`}>
-        {score ?? 0}/100 {label}
+        {score100}/100 {label}
       </span>
     );
   };
@@ -158,7 +165,62 @@ export default function TransactionsPage() {
   };
 
   const handleInvestigate = (transaction) => {
-    console.log("Investiguer :", transaction);
+    const subject = `Confirmation de transaction suspecte - ${transaction.id_transaction}`;
+
+    const message = `Nous avons détecté une transaction suspecte sur votre compte.
+Référence : ${transaction.id_transaction}
+Montant : ${transaction.montant} EUR
+Catégorie : ${transaction.merchant_category}
+Localisation : ${transaction.city}, ${transaction.country}
+Date : ${transaction.date_transaction}
+
+Merci de confirmer si cette transaction a bien été effectuée par vous.`;
+
+    setSelectedTransaction(transaction);
+    setInvestigationForm({
+      to: transaction.client_email || "",
+      subject,
+      message,
+    });
+    setShowInvestigationForm(true);
+  };
+  const handleSendInvestigation = async () => {
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:5000/api/transactions/${selectedTransaction.id_transaction}/investigate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            subject: investigationForm.subject,
+            message: investigationForm.message,
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erreur lors de l'investigation");
+      }
+
+      setTransactions((prev) =>
+        prev.map((t) =>
+          t.id_transaction === selectedTransaction.id_transaction
+            ? { ...t, statut: "Investigation" }
+            : t,
+        ),
+      );
+
+      setShowInvestigationForm(false);
+      setSelectedTransaction(null);
+
+      alert("Email envoyé avec succès");
+    } catch (error) {
+      alert(error.message);
+    }
   };
 
   const handleEmail = (transaction) => {
@@ -667,6 +729,76 @@ export default function TransactionsPage() {
           </table>
         </div>
       </div>
+      {showInvestigationForm && (
+        <div className="email-modal-overlay">
+          <div className="email-modal-card">
+            <div className="email-modal-header">
+              <div className="email-modal-title">
+                <div className="email-icon">⚠</div>
+                <div>
+                  <h2>Demande de confirmation client</h2>
+                  <p>Vers : {investigationForm.to}</p>
+                </div>
+              </div>
+
+              <button
+                className="email-close-btn"
+                onClick={() => setShowInvestigationForm(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="email-preview-info">
+              <div>
+                <span>De :</span>
+                <strong>AnalyseTransaction_IA@banque.com</strong>
+              </div>
+
+              <div>
+                <span>À :</span>
+                <strong>{investigationForm.to}</strong>
+              </div>
+
+              <div>
+                <span>Objet :</span>
+                <strong>{investigationForm.subject}</strong>
+              </div>
+            </div>
+
+            <div className="email-message-box">
+              <textarea
+                value={investigationForm.message}
+                onChange={(e) =>
+                  setInvestigationForm({
+                    ...investigationForm,
+                    message: e.target.value,
+                  })
+                }
+              />
+            </div>
+
+            <div className="email-info-box">
+              ✉ <span>Investigation en cours</span> — Le client aura 24h pour
+              confirmer. Sans réponse, la transaction sera bloquée
+              automatiquement.
+            </div>
+
+            <div className="email-modal-actions">
+              <button
+                className="cancel-btn"
+                onClick={() => setShowInvestigationForm(false)}
+              >
+                Annuler
+              </button>
+
+              <button className="send-btn" onClick={handleSendInvestigation}>
+                ✈ Envoyer l'email
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

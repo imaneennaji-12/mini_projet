@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify
 from app.models import Transaction, FraudeDetectee, db
 
-dashboard = Blueprint("dashboard", __name__)
+Dashboard = Blueprint("Dashboard", __name__)
 
-@dashboard.route("/stats", methods=["GET"])
+@Dashboard.route("/stats", methods=["GET"])
 def stats():
 
     # 📦 Total transactions

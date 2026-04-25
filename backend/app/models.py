@@ -2,7 +2,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
-from streamlit import secrets
+import secrets
 
 db = SQLAlchemy()
 

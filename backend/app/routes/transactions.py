@@ -1,13 +1,19 @@
 
 from flask import request, jsonify
+from flask import request, jsonify
+from datetime import datetime, timedelta
+
 from app.routes import routes_bp
 from app.services.ml_service import predict_transaction
-from app.models import Transaction, Client
-from app import db
-from datetime import datetime
-from flask import request, jsonify
-from app.routes import routes_bp
-from app.models import db, Transaction, DecisionHumaine
+from app.services.email_service import send_investigation_email
+from app.models import (
+    db,
+    Transaction,
+    Client,
+    DecisionHumaine,
+    Investigation,
+    NotificationClient
+)
 
 
 @routes_bp.route("/transactions/analyze", methods=["POST"])
@@ -179,3 +185,148 @@ def refuse_transaction(id_transaction):
         "statut": transaction.statut,
         "decision": decision.decision
     }), 200
+
+@routes_bp.route("/transactions/<int:id_transaction>/investigate", methods=["POST"])
+def investigate_transaction(id_transaction):
+    data = request.get_json()
+
+    transaction = Transaction.query.get(id_transaction)
+    if not transaction:
+        return jsonify({"error": "Transaction introuvable"}), 404
+
+    client = transaction.client
+    if not client:
+        return jsonify({"error": "Client introuvable"}), 404
+
+    subject = data.get("subject", "Confirmation de transaction suspecte")
+    message = data.get("message", "")
+
+    transaction.statut = "Investigation"
+
+    investigation = Investigation(
+        id_transaction=transaction.id_transaction,
+        id_client=client.id_client,
+        token_expiry=datetime.utcnow() + timedelta(hours=24),
+        statut_inv="en_attente"
+    )
+
+    db.session.add(investigation)
+    db.session.flush()
+
+    lien_oui = f"http://127.0.0.1:5000/api/client-response/{investigation.token}/oui"
+    lien_non = f"http://127.0.0.1:5000/api/client-response/{investigation.token}/non"
+
+    html_body = f"""
+<p>Bonjour {client.nom},</p>
+
+<p>{message}</p>
+
+<hr>
+
+<p><strong>Détails de la transaction :</strong></p>
+<ul>
+    <li>Référence : {transaction.id_transaction}</li>
+    <li>Montant : {transaction.montant} EUR</li>
+    <li>Catégorie : {transaction.merchant_category}</li>
+    <li>Localisation : {transaction.city}, {transaction.country}</li>
+    <li>Date : {transaction.date_transaction}</li>
+</ul>
+
+<p>Veuillez confirmer :</p>
+
+<table role="presentation" cellspacing="0" cellpadding="0">
+<tr>
+<td style="padding:10px;">
+    <a href="{lien_oui}"
+       style="
+       background-color:#16a34a;
+       color:white;
+       padding:12px 20px;
+       text-decoration:none;
+       border-radius:8px;
+       display:inline-block;
+       font-weight:bold;
+       font-family:Arial;
+       ">
+       ✅ Oui, c'est moi
+    </a>
+</td>
+
+<td style="padding:10px;">
+    <a href="{lien_non}"
+       style="
+       background-color:#dc2626;
+       color:white;
+       padding:12px 20px;
+       text-decoration:none;
+       border-radius:8px;
+       display:inline-block;
+       font-weight:bold;
+       font-family:Arial;
+       ">
+       ❌ Non, fraude
+    </a>
+</td>
+</tr>
+</table>
+
+<p style="margin-top:20px;">
+⏳ Ce lien expire dans 24 heures.
+</p>
+
+<p>
+Cordialement,<br>
+Service sécurité bancaire
+</p>
+"""
+    send_investigation_email(client.email, subject, html_body)
+
+    notification = NotificationClient(
+        id_client=client.id_client,
+        id_transaction=transaction.id_transaction,
+        type_notif="investigation",
+        canal="email",
+        statut_envoi="envoyé"
+    )
+
+    db.session.add(notification)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Investigation créée et email envoyé",
+        "statut": transaction.statut,
+        "email": client.email
+    }), 200
+@routes_bp.route("/client-response/<token>/<reponse>", methods=["GET"])
+def client_response(token, reponse):
+    investigation = Investigation.query.filter_by(token=token).first()
+
+    if not investigation:
+        return "Lien invalide", 404
+
+    if investigation.token_expiry and investigation.token_expiry < datetime.utcnow():
+        investigation.statut_inv = "expiré"
+        db.session.commit()
+        return "Lien expiré", 400
+
+    if reponse not in ["oui", "non"]:
+        return "Réponse invalide", 400
+    if investigation.reponse_client is not None:
+        return "Réponse déjà enregistrée", 200
+
+    investigation.reponse_client = reponse
+    investigation.date_reponse = datetime.utcnow()
+
+    if reponse == "oui":
+        investigation.statut_inv = "confirmé_client"
+        investigation.transaction.statut = "Validée"
+    else:
+        investigation.statut_inv = "refusé_client"
+        investigation.transaction.statut = "Refusée"
+
+    db.session.commit()
+
+    return """
+    <h2>Merci pour votre réponse</h2>
+    <p>Votre réponse a bien été enregistrée.</p>
+    """
