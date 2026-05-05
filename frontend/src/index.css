@@ -1,111 +1,196 @@
+/* =========================================
+   FRAUDSHIELD — Global Design System
+   Variables CSS + Reset de base
+   ========================================= */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* ─── Core Brand ─── */
+  --background: 220 25% 97%;
+  --foreground: 222 47% 11%;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* ─── Cards / Surfaces ─── */
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* ─── Primary = Steel Blue ─── */
+  --primary: 214 84% 48%;
+  --primary-foreground: 0 0% 100%;
+  --primary-glow: 214 84% 62%;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  /* ─── Secondary = Slate ─── */
+  --secondary: 215 25% 92%;
+  --secondary-foreground: 222 47% 20%;
+
+  /* ─── Muted ─── */
+  --muted: 220 20% 94%;
+  --muted-foreground: 215 16% 47%;
+
+  /* ─── Accent = Navy ─── */
+  --accent: 222 47% 18%;
+  --accent-foreground: 210 40% 96%;
+
+  /* ─── Semantic Colors ─── */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --success: 160 70% 38%;
+  --success-foreground: 0 0% 100%;
+  --success-light: 160 60% 94%;
+
+  --warning: 38 95% 50%;
+  --warning-foreground: 0 0% 100%;
+  --warning-light: 38 95% 94%;
+
+  --danger: 0 84% 60%;
+  --danger-foreground: 0 0% 100%;
+  --danger-light: 0 84% 95%;
+
+  --info: 199 89% 48%;
+  --info-foreground: 0 0% 100%;
+  --info-light: 199 89% 94%;
+
+  /* ─── Borders / Inputs ─── */
+  --border: 214 32% 88%;
+  --input: 214 32% 88%;
+  --ring: 214 84% 48%;
+
+  --radius: 0.625rem;
+
+  /* ─── Sidebar (Dark Navy) ─── */
+  --sidebar-background: 222 47% 11%;
+  --sidebar-foreground: 215 25% 75%;
+  --sidebar-primary: 214 84% 60%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 222 47% 18%;
+  --sidebar-accent-foreground: 210 40% 95%;
+  --sidebar-border: 222 40% 17%;
+  --sidebar-ring: 214 84% 55%;
+
+  /* ─── Shadows ─── */
+  --shadow-card:
+    0 1px 3px 0 hsl(222 47% 11% / 0.06), 0 4px 16px -2px hsl(222 47% 11% / 0.08);
+  --shadow-elevated:
+    0 4px 24px -4px hsl(214 84% 48% / 0.15),
+    0 2px 8px -2px hsl(222 47% 11% / 0.1);
+  --shadow-alert:
+    0 0 0 1px hsl(0 84% 60% / 0.3), 0 4px 16px hsl(0 84% 60% / 0.12);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-body {
+/* ─── Reset de base ─── */
+* {
   margin: 0;
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+  padding: 0;
   box-sizing: border-box;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+body {
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "cv11", "ss01";
+  line-height: 1.5;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* ─── Font Mono ─── */
+.font-mono {
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* ─── Animations globales ─── */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
-p {
-  margin: 0;
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes pulse-alert {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
 }

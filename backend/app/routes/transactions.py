@@ -12,7 +12,6 @@ from app.models import (
     Client,
     DecisionHumaine,
     Investigation,
-    NotificationClient
 )
 
 
@@ -27,22 +26,7 @@ def analyze_transaction():
     if not client:
         return jsonify({"error": "Client introuvable"}), 404
 
-    alert_signals = []
-
-    if data["transaction_hour"] <= 4:
-        alert_signals.append("Heure inhabituelle")
-
-    if data["foreign_transaction"] == 1:
-        alert_signals.append("Transaction étrangère")
-
-    if data["location_mismatch"] == 1:
-        alert_signals.append("Localisation incohérente")
-
-    if data["amount"] > 3000:
-        alert_signals.append("Montant atypique")
-
-    if data["device_trust_score"] < 0.3:
-        alert_signals.append("Nouveau dispositif")
+    
 
     risk_score = result["risk_score"]
 
@@ -52,6 +36,27 @@ def analyze_transaction():
         risk_level = "Moyen"
     else:
         risk_level = "Faible"
+    alert_signals = []
+    
+    if risk_level == "Élevé" or risk_level == "Moyen" :
+        
+
+        if data["transaction_hour"] <= 4:
+           alert_signals.append("Heure inhabituelle")
+
+        if data["foreign_transaction"] == 1:
+           alert_signals.append("Transaction étrangère")
+
+        if data["location_mismatch"] == 1:
+           alert_signals.append("Localisation incohérente")
+
+        if data["amount"] > 3000:
+            alert_signals.append("Montant atypique")
+
+        if data["device_trust_score"] < 0.3:
+            alert_signals.append("Nouveau dispositif")
+
+      
 
     transaction = Transaction(
         id_transaction=data["id_transaction"],
@@ -69,10 +74,13 @@ def analyze_transaction():
         prediction=result["prediction"],
         risk_score=result["risk_score"],
         risk_level=risk_level,
-        statut=result["status"],
         alert_signals=", ".join(alert_signals),
         date_transaction=datetime.utcnow()
     )
+    if risk_level == "Faible":
+       transaction.statut = "Validée"
+    else:
+       transaction.statut = "En attente"
 
     db.session.add(transaction)
     db.session.commit()
@@ -135,12 +143,13 @@ def validate_transaction(id_transaction):
 
     # changer le statut de la transaction
     transaction.statut = "Validée"
+    db.session.commit()
 
     # créer la décision humaine
     decision = DecisionHumaine(
         id_transaction=transaction.id_transaction,
         id_user=id_user,
-        decision="approuvé",
+        decision="Validée",
         commentaire=commentaire
     )
 
@@ -172,7 +181,7 @@ def refuse_transaction(id_transaction):
     decision = DecisionHumaine(
         id_transaction=transaction.id_transaction,
         id_user=id_user,
-        decision="refusé",
+        decision="Refusée",
         commentaire=commentaire
     )
 
@@ -207,7 +216,9 @@ def investigate_transaction(id_transaction):
         id_transaction=transaction.id_transaction,
         id_client=client.id_client,
         token_expiry=datetime.utcnow() + timedelta(hours=24),
-        statut_inv="en_attente"
+        statut_inv="en_attente",
+        email_envoye=True,        
+        date_envoi_email=datetime.utcnow()
     )
 
     db.session.add(investigation)
@@ -281,15 +292,6 @@ Service sécurité bancaire
 """
     send_investigation_email(client.email, subject, html_body)
 
-    notification = NotificationClient(
-        id_client=client.id_client,
-        id_transaction=transaction.id_transaction,
-        type_notif="investigation",
-        canal="email",
-        statut_envoi="envoyé"
-    )
-
-    db.session.add(notification)
     db.session.commit()
 
     return jsonify({
@@ -330,3 +332,36 @@ def client_response(token, reponse):
     <h2>Merci pour votre réponse</h2>
     <p>Votre réponse a bien été enregistrée.</p>
     """
+
+@routes_bp.route("/investigations", methods=["GET"])
+def get_investigations():
+    transactions = Transaction.query.all()
+
+    result = []
+
+    for t in transactions:
+        # condition investigation
+        if t.statut == "Investigation" or (t.statut == "En attente" and t.risk_level == "Élevé"):
+
+            client = t.client
+
+            result.append({
+                "id": t.id_transaction,
+                "client": f"{client.nom} {client.prenom}" if client else "",
+                "amount": t.montant,
+                "currency": "EUR",
+                "merchant": t.merchant_category,
+                "location": f"{t.city}, {t.country}",
+                "date": t.date_transaction.strftime("%Y-%m-%d"),
+                "time": t.date_transaction.strftime("%H:%M:%S"),
+                "riskLevel": t.risk_level.lower(),
+                "riskScore": int(t.risk_score * 100),
+                "status": t.statut.lower(),
+                "email": client.email if client else "",
+                "phone": client.telephone if client else "",
+                "flags": t.alert_signals.split(",") if t.alert_signals else [],
+                "deviceType": "Inconnu",
+                "ipAddress": "192.168.1.1"
+            })
+
+    return jsonify(result), 200

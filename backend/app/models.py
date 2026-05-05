@@ -62,8 +62,6 @@ class Transaction(db.Model):
     investigations = db.relationship(
     'Investigation', backref='transaction', lazy=True
     )
-    notifications = db.relationship(
-    'NotificationClient', backref='transaction', lazy=True)
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -108,7 +106,6 @@ class Client(db.Model):
     date_creation = db.Column(db.DateTime, default=datetime.utcnow)
 
     transactions = db.relationship('Transaction', backref='client', lazy=True)
-    notifications = db.relationship('NotificationClient', backref='client', lazy=True)
     investigations = db.relationship('Investigation', backref='client', lazy=True)
 
 
@@ -126,21 +123,8 @@ class FraudeDetectee(db.Model):
     type_fraude         = db.Column(db.String(50), default='inconnu')
     montant_fraude      = db.Column(db.Float)
 
-# ────────────────────────────────────────────
-# TABLE: NotificationClient (log des emails envoyés)
-# ────────────────────────────────────────────
-class NotificationClient(db.Model):
-    __tablename__ = 'notifications_client'
-    id             = db.Column(db.Integer, primary_key=True)
 
-    id_client      = db.Column(db.Integer, db.ForeignKey('clients.id_client'), nullable=False)
-    id_transaction = db.Column(db.Integer, db.ForeignKey('transactions.id_transaction'))
 
-    # 'investigation', 'alerte_fraude', 'transaction_validée'
-    type_notif     = db.Column(db.String(50))
-    canal          = db.Column(db.String(20), default='email')  # 'email', 'sms'
-    statut_envoi   = db.Column(db.String(20), default='envoyé') # 'envoyé', 'échec'
-    date_envoi     = db.Column(db.DateTime, default=datetime.utcnow)
 class Investigation(db.Model):
     __tablename__ = 'investigations'
     id_investigation            = db.Column(db.Integer, primary_key=True)
@@ -158,7 +142,8 @@ class Investigation(db.Model):
     reponse_client = db.Column(db.String(20))   # 'oui_cest_moi' | 'non_fraude'
     date_reponse   = db.Column(db.DateTime)
     date_creation  = db.Column(db.DateTime, default=datetime.utcnow)
-
+    email_envoye = db.Column(db.Boolean, default=False)
+    date_envoi_email = db.Column(db.DateTime)
     reponses = db.relationship('ReponseClient', backref='investigation', lazy=True)
 # ────────────────────────────────────────────
 # TABLE: ReponseClient (trace du clic client)

@@ -245,8 +245,9 @@ Merci de confirmer si cette transaction a bien été effectuée par vous.`;
           }),
         },
       );
-
-      const data = await response.json();
+      const refreshed = await fetch("http://127.0.0.1:5000/api/transactions");
+      const data = await refreshed.json();
+      setTransactions(data);
 
       if (!response.ok) {
         throw new Error(data.error || "Erreur lors de la validation");
