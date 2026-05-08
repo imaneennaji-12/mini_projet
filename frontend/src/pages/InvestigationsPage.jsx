@@ -26,11 +26,13 @@ import {
   Ban,
 } from "lucide-react";
 import "./InvestigationsPage.css";
+import { useSocket } from "../hooks/useSocket";
 
 export default function InvestigationsPage() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const socketRef = useSocket();
   const [selectedTxn, setSelectedTxn] = useState(null);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [expandedId, setExpandedId] = useState(null);

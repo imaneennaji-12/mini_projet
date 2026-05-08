@@ -1,7 +1,9 @@
 
+from flask_socketio import emit 
 from flask import request, jsonify
 from flask import request, jsonify
 from datetime import datetime, timedelta
+from app import socketio 
 
 from app.routes import routes_bp
 from app.services.ml_service import predict_transaction
@@ -84,6 +86,7 @@ def analyze_transaction():
 
     db.session.add(transaction)
     db.session.commit()
+    socketio.emit("new_transaction", {"status": "ok"})
 
     return jsonify(result), 200
 @routes_bp.route("/transactions", methods=["GET"])
@@ -155,6 +158,12 @@ def validate_transaction(id_transaction):
 
     db.session.add(decision)
     db.session.commit()
+    socketio.emit("transaction_updated", {
+        "id_transaction": transaction.id_transaction,
+        "statut": "Validée",
+        "decision": "Validée",
+        "id_user": id_user
+    })
 
     return jsonify({
         "message": "Transaction validée avec succès",
@@ -187,6 +196,12 @@ def refuse_transaction(id_transaction):
 
     db.session.add(decision)
     db.session.commit()
+    socketio.emit("transaction_updated", {
+        "id_transaction": transaction.id_transaction,
+        "statut": "Refusée",
+        "decision": "Refusée",
+        "id_user": id_user
+    })
 
     return jsonify({
         "message": "Transaction refusée avec succès",
@@ -327,6 +342,12 @@ def client_response(token, reponse):
         investigation.transaction.statut = "Refusée"
 
     db.session.commit()
+    socketio.emit("investigation_resolved", {
+        "id_transaction": investigation.transaction.id_transaction,
+        "reponse": reponse,
+        "statut_transaction": investigation.transaction.statut,
+        "statut_investigation": investigation.statut_inv
+    })
 
     return """
     <h2>Merci pour votre réponse</h2>

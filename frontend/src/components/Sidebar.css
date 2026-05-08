@@ -1,84 +1,217 @@
 /* =========================================
-   SIDEBAR — Style risk-aware-ui (Dark Navy)
+   SIDEBAR
    ========================================= */
 
 .sidebar {
   position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
+  inset: 0 auto 0 0;
+
   width: 260px;
-  background: hsl(222 47% 11%); /* #0f172a */
+  max-width: 85vw;
+
+  background: hsl(222 47% 11%);
   color: hsl(215 25% 75%);
+
   display: flex;
   flex-direction: column;
-  z-index: 100;
+
   border-right: 1px solid hsl(222 40% 17%);
+
+  z-index: 100;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  -webkit-overflow-scrolling: touch;
+
+  padding-bottom: env(safe-area-inset-bottom);
+
+  transition:
+    width 0.3s ease,
+    transform 0.3s ease;
+
+  will-change: transform, width;
 }
 
-/* ─── Brand ─── */
+/* =========================================
+   COLLAPSED
+   ========================================= */
+
+/* =========================================
+   COLLAPSED
+   ========================================= */
+
+.sidebar.collapsed {
+  width: 72px;
+}
+
+/* Centrer les nav items */
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 12px;
+  gap: 0;
+}
+
+/* Cacher les textes des nav items */
+.sidebar.collapsed .nav-item span {
+  display: none;
+}
+
+/* Cacher le brand text */
+.sidebar.collapsed .brand-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+/* Centrer le brand */
+.sidebar.collapsed .sidebar-brand {
+  justify-content: center;
+  padding: 24px 16px 20px;
+}
+
+/* Footer centré */
+.sidebar.collapsed .sidebar-footer {
+  align-items: center;
+}
+
+/* Centrer le user-mini */
+.sidebar.collapsed .user-mini {
+  justify-content: center;
+  padding: 0 0 12px;
+}
+
+/* Cacher les infos user */
+.sidebar.collapsed .user-info {
+  display: none;
+}
+
+/* Centrer logout */
+.sidebar.collapsed .logout-btn {
+  justify-content: center;
+  padding: 10px;
+}
+
+/* Cacher le texte logout */
+.sidebar.collapsed .logout-btn span {
+  display: none;
+}
+
+/* =========================================
+   BRAND
+   ========================================= */
+
 .sidebar-brand {
   display: flex;
   align-items: center;
   gap: 12px;
+
   padding: 24px 20px 20px;
+
   border-bottom: 1px solid hsl(222 40% 17%);
+
+  min-height: 82px;
+}
+
+.sidebar.collapsed .sidebar-brand {
+  justify-content: center;
+  padding: 24px 16px 20px;
 }
 
 .brand-icon {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, hsl(214, 84%, 48%), hsl(199, 89%, 48%));
+  width: 38px;
+  height: 38px;
+
   border-radius: 10px;
+
+  background: linear-gradient(135deg, hsl(214 84% 48%), hsl(199 89% 48%));
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   color: white;
+
   flex-shrink: 0;
 }
 
 .brand-text {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 2px;
+
+  overflow: hidden;
+
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar.collapsed .brand-text {
+  opacity: 0;
+  width: 0;
 }
 
 .brand-name {
   font-size: 16px;
   font-weight: 700;
+
   color: white;
-  letter-spacing: -0.01em;
+
+  white-space: nowrap;
+  line-height: 1.1;
 }
 
 .brand-tag {
   font-size: 10px;
   font-weight: 600;
+
   color: hsl(215 25% 60%);
-  text-transform: uppercase;
+
   letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  line-height: 1;
 }
 
-/* ─── Navigation ─── */
+/* =========================================
+   NAVIGATION
+   ========================================= */
+
 .sidebar-nav {
   flex: 1;
+
   padding: 16px 12px;
+
   display: flex;
   flex-direction: column;
   gap: 4px;
+
+  overflow-y: auto;
 }
 
 .nav-item {
+  position: relative;
+
   display: flex;
   align-items: center;
   gap: 14px;
+
   padding: 12px 16px;
+
   border-radius: 10px;
+
   color: hsl(215 25% 75%);
   text-decoration: none;
+
   font-size: 14px;
   font-weight: 500;
+
+  white-space: nowrap;
+
   transition: all 0.2s;
-  cursor: pointer;
+
+  transform: translateZ(0);
 }
 
 .nav-item:hover {
@@ -89,96 +222,290 @@
 .nav-item.active {
   background: hsl(214 84% 48% / 0.15);
   color: hsl(214 84% 60%);
-  font-weight: 600;
 }
 
 .nav-item.active::before {
   content: "";
+
   position: absolute;
   left: 0;
+
   width: 3px;
   height: 24px;
-  background: hsl(214 84% 60%);
+
   border-radius: 0 4px 4px 0;
+
+  background: hsl(214 84% 60%);
 }
 
-/* ─── Footer ─── */
-.sidebar-footer {
-  padding: 16px 12px 20px;
-  border-top: 1px solid hsl(222 40% 17%);
+/* collapsed items */
+
+.nav-item--icon-only {
+  justify-content: center;
+  padding: 12px;
 }
+
+/* =========================================
+   FOOTER
+   ========================================= */
+
+.sidebar-footer {
+  margin-top: auto;
+
+  padding: 16px 12px 20px;
+
+  border-top: 1px solid hsl(222 40% 17%);
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar.collapsed .sidebar-footer {
+  align-items: center;
+}
+
+/* =========================================
+   USER
+   ========================================= */
 
 .user-mini {
   display: flex;
   align-items: center;
   gap: 12px;
+
   padding: 0 8px 12px;
+
+  width: 100%;
+}
+
+.user-mini--collapsed {
+  justify-content: center;
 }
 
 .user-avatar {
   width: 36px;
   height: 36px;
+
   border-radius: 50%;
-  background: linear-gradient(135deg, hsl(214, 84%, 48%), hsl(199, 89%, 48%));
+
+  background: linear-gradient(135deg, hsl(214 84% 48%), hsl(199 89% 48%));
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   color: white;
+
   font-weight: 700;
-  font-size: 14px;
+
   flex-shrink: 0;
 }
 
-.user-info {
+.sidebar .user-info {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 2px;
+
   overflow: hidden;
+
+  min-width: 0;
+  flex: 1;
 }
 
-.user-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: hsl(210 40% 96%);
-  white-space: nowrap;
+.sidebar.collapsed .user-info {
+  opacity: 0;
+  width: 0;
+}
+
+.sidebar .user-name,
+.sidebar .user-role {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.user-role {
+.sidebar .user-name {
+  font-size: 13px;
+  font-weight: 600;
+
+  color: hsl(210 40% 96%);
+}
+
+.sidebar .user-role {
   font-size: 11px;
   color: hsl(215 25% 60%);
 }
 
-.logout-btn {
+/* =========================================
+   BUTTONS
+   ========================================= */
+
+.sidebar .logout-btn,
+.sidebar .sidebar-collapse-btn {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 10px;
+
   width: 100%;
+
   padding: 10px 16px;
-  border: none;
-  background: transparent;
-  color: hsl(215 25% 60%);
-  font-size: 13px;
-  font-weight: 500;
+
+  border: none !important;
   border-radius: 10px;
+
+  background: transparent;
+
+  color: hsl(215 25% 60%);
+
   cursor: pointer;
+
   transition: all 0.2s;
+
+  transform: translateZ(0);
+
+  box-shadow: none !important;
 }
 
-.logout-btn:hover {
+.sidebar .logout-btn span {
+  white-space: nowrap;
+}
+
+.sidebar .logout-btn:hover {
   background: hsl(0 84% 60% / 0.1);
   color: hsl(0 84% 60%);
 }
 
-/* ─── Responsive ─── */
+.sidebar .sidebar-collapse-btn:hover {
+  background: hsl(222 47% 18%);
+  color: hsl(210 40% 96%);
+}
+
+/* =========================================
+   BACKDROP
+   ========================================= */
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+
+  background: rgba(15, 23, 42, 0.55);
+
+  z-index: 90;
+
+  opacity: 0;
+  pointer-events: none;
+
+  transition: opacity 0.25s ease;
+}
+
+.sidebar-backdrop.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* =========================================
+   MOBILE RESPONSIVE FIX
+   ========================================= */
+
+/* =========================================
+   MOBILE RESPONSIVE
+   ========================================= */
+
 @media (max-width: 768px) {
+  /* Sidebar cachée par défaut, pleine largeur */
   .sidebar {
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
+    width: 260px !important;
+    max-width: 85vw !important;
+    transform: translateX(-100%) !important;
   }
 
+  /* Ouverte via hamburger */
   .sidebar.open {
-    transform: translateX(0);
+    transform: translateX(0) !important;
+  }
+
+  /* Ignorer l'état collapsed sur mobile */
+  .sidebar.collapsed {
+    width: 260px !important;
+    transform: translateX(-100%) !important;
+  }
+
+  .sidebar.collapsed.open {
+    transform: translateX(0) !important;
+  }
+
+  /* Rétablir l'affichage normal (annuler les règles collapsed) */
+  .sidebar .nav-item,
+  .sidebar.collapsed .nav-item {
+    justify-content: flex-start !important;
+    padding: 12px 16px !important;
+    gap: 14px !important;
+  }
+
+  .sidebar .nav-item span,
+  .sidebar.collapsed .nav-item span {
+    display: inline !important;
+  }
+
+  .sidebar .brand-text,
+  .sidebar.collapsed .brand-text {
+    display: flex !important;
+    opacity: 1 !important;
+    width: auto !important;
+  }
+
+  .sidebar .sidebar-brand,
+  .sidebar.collapsed .sidebar-brand {
+    justify-content: flex-start !important;
+    padding: 24px 20px 20px !important;
+  }
+
+  .sidebar .user-info,
+  .sidebar.collapsed .user-info {
+    display: flex !important;
+    opacity: 1 !important;
+    width: auto !important;
+  }
+
+  .sidebar .user-mini,
+  .sidebar.collapsed .user-mini {
+    justify-content: flex-start !important;
+    padding: 0 8px 12px !important;
+  }
+
+  .sidebar .logout-btn,
+  .sidebar.collapsed .logout-btn {
+    justify-content: flex-start !important;
+    padding: 10px 16px !important;
+  }
+
+  .sidebar .logout-btn span,
+  .sidebar.collapsed .logout-btn span {
+    display: inline !important;
+  }
+
+  .sidebar .sidebar-footer,
+  .sidebar.collapsed .sidebar-footer {
+    align-items: flex-start !important;
+  }
+
+  /* Masquer le bouton collapse sur mobile */
+  .sidebar-collapse-btn {
+    display: none !important;
+  }
+}
+
+/* =========================================
+   TOUCH DEVICES
+   ========================================= */
+
+@media (hover: none) {
+  .nav-item--icon-only::after,
+  .logout-btn--icon-only::after,
+  .sidebar-collapse-btn::after {
+    display: none;
   }
 }

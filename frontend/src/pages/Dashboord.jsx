@@ -1,91 +1,80 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { api } from "../lib/api";
+
+import {
+  Activity,
+  ShieldAlert,
+  CheckCircle2,
+  DollarSign,
+  XCircle,
+  Clock,
+  AlertTriangle,
+} from "lucide-react";
+
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
+
 import "./Dashboard.css";
 
-/* Helpers */
 function fmt(n) {
-  if (n === null || n === undefined) return "—";
+  if (n == null) return "—";
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
   return String(n);
 }
 
-function StatCard({
-  iconEmoji,
-  iconBg,
-  label,
-  sub,
-  value,
-  trend,
-  trendColor = "#10b981",
-  delay = 0,
-  loading,
-}) {
-  const [hovered, setHovered] = useState(false);
+const tooltipStyle = {
+  borderRadius: 10,
+  border: "1px solid #e2e8f0",
+  fontSize: 12,
+  fontFamily: "'DM Mono', monospace",
+  boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
+};
 
+function StatCard({ icon: Icon, label, value, sub, iconBg, loading, delay }) {
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="stat-card"
-      style={{
-        animationDelay: `${delay}s`,
-        transform: hovered ? "translateY(-3px)" : "none",
-        boxShadow: hovered
-          ? "0 8px 32px rgba(15,23,42,0.10)"
-          : "0 1px 3px rgba(15,23,42,0.06), 0 2px 12px rgba(15,23,42,0.04)",
-      }}
-    >
-      <div className="stat-card-header">
+    <div className="stat-card" style={{ animationDelay: `${delay}s` }}>
+      <div className="stat-top">
         <div className="stat-icon" style={{ background: iconBg }}>
-          {iconEmoji}
+          <Icon size={20} />
         </div>
-        {trend != null && (
-          <span
-            className="stat-trend"
-            style={{ color: trendColor, background: trendColor + "18" }}
-          >
-            ↗ {trend}
-          </span>
-        )}
       </div>
+
       {loading ? (
         <div className="stat-skeleton" />
       ) : (
         <div className="stat-value">{value}</div>
       )}
+
       <div className="stat-label">{label}</div>
-      {sub && <div className="stat-sub">{sub}</div>}
+      <div className="stat-sub">{sub}</div>
     </div>
   );
 }
 
 export default function Dashboard() {
+  const { user, token } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const navigate = useNavigate();
-  const token = localStorage.getItem("fs_token");
 
-  useEffect(() => {
-    if (!token) navigate("/");
-  }, [token, navigate]);
-
-  useEffect(() => {
-    if (!token) return;
-    fetch("http://127.0.0.1:5000/stats", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        setStats(d);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError("Impossible de charger les statistiques.");
-        setLoading(false);
-      });
-  }, [token]);
+  const displayName =
+    user?.prenom && user?.nom
+      ? `${user.prenom} ${user.nom}`
+      : user?.nom || "Utilisateur";
 
   const today = new Date().toLocaleDateString("fr-FR", {
     weekday: "long",
@@ -93,103 +82,125 @@ export default function Dashboard() {
     month: "long",
   });
 
-  const primaryCards = [
+  useEffect(() => {
+    if (!token) return;
+
+    api
+      .get("/stats")
+      .then((res) => {
+        setStats(res);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [token]);
+
+  const cards = [
     {
-      iconEmoji: "〰️",
-      iconBg: "#eff6ff",
-      label: "Transactions totales",
+      icon: Activity,
+      label: "Transactions",
+      value: stats?.totalTransactions?.toLocaleString(),
       sub: "Cette semaine",
-      value: stats ? stats.totalTransactions?.toLocaleString("fr-FR") : null,
-      trend: "+12%",
-      trendColor: "#10b981",
+      iconBg: "#eff6ff",
     },
     {
-      iconEmoji: "🛡️",
+      icon: ShieldAlert,
+      label: "Fraudes",
+      value: stats?.fraudDetected,
+      sub: "Détectées",
       iconBg: "#fff1f2",
-      label: "Fraudes détectées",
-      sub: stats ? `${stats.fraudDetected} alertes générées` : "—",
-      value: stats ? String(stats.fraudDetected) : null,
-      trend: null,
     },
     {
-      iconEmoji: "✅",
+      icon: CheckCircle2,
+      label: "Validation",
+      value: `${stats?.validationRate ?? 0}%`,
+      sub: "Taux",
       iconBg: "#f0fdf4",
-      label: "Taux de validation",
-      sub: "Transactions légitimes",
-      value: stats ? `${stats.validationRate}%` : null,
-      trend: "+0.4%",
-      trendColor: "#10b981",
     },
     {
-      iconEmoji: "💲",
-      iconBg: "#fefce8",
+      icon: DollarSign,
       label: "Montant risqué",
-      sub: "Fraudes détectées",
-      value: stats ? fmt(stats.riskAmount) + " MAD" : null,
-      trend: null,
+      value: fmt(stats?.riskAmount),
+      sub: "MAD",
+      iconBg: "#fefce8",
+    },
+    {
+      icon: XCircle,
+      label: "Refus",
+      value: `${stats?.refusalRate ?? 0}%`,
+      sub: "Transactions",
+      iconBg: "#fff7ed",
+    },
+    {
+      icon: Clock,
+      label: "Investigations",
+      value: stats?.openInvestigations,
+      sub: "Ouvertes",
+      iconBg: "#eef2ff",
+    },
+    {
+      icon: AlertTriangle,
+      label: "Score risque",
+      value: stats?.avgRiskScore,
+      sub: "Moyen",
+      iconBg: "#fef3c7",
     },
   ];
 
   return (
-    <div className="dashboard-page">
-      <style>{`
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-        .stat-skeleton {
-          width: 90px; height: 34px; border-radius: 8px; margin-bottom: 8px;
-          background: linear-gradient(90deg,#f1f5f9 25%,#e8edf3 50%,#f1f5f9 75%);
-          background-size: 200% 100%;
-          animation: shimmer 1.3s infinite;
-        }
-      `}</style>
-
-      <div className="dashboard-header">
-        <div>
-          <h1 className="dashboard-title">Bonjour, {name.split(" ")[0]} 👋</h1>
-          <p className="dashboard-subtitle">
-            Voici le résumé de la surveillance cette semaine — {today}
-          </p>
+    <div className="dashboard-root">
+      <div className="dashboard-content">
+        <div className="dashboard-header">
+          <div>
+            <h1>Bonjour {displayName} 👋</h1>
+            <p>Résumé du système — {today}</p>
+          </div>
         </div>
-        <div className="dashboard-alert">
-          <span>🛡️</span>
-          <span>3 alertes critiques</span>
+
+        {/* CARDS */}
+        <div className="cards-grid">
+          {cards.map((c, i) => (
+            <StatCard key={c.label} {...c} loading={loading} delay={i * 0.05} />
+          ))}
         </div>
-      </div>
 
-      {error && <div className="dashboard-error">⚠️ {error}</div>}
+        {/* CHARTS */}
+        <div className="charts-grid">
+          <div className="chart-card">
+            <h3>Fraudes vs Transactions</h3>
 
-      <div className="stats-grid">
-        {primaryCards.map((c, i) => (
-          <StatCard key={c.label} {...c} delay={0.05 * i} loading={loading} />
-        ))}
-      </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={stats?.dailyData || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="day" />
+                <YAxis />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Legend />
 
-      <div className="dashboard-placeholder">
-        <div style={{ fontSize: 36, marginBottom: 10 }}>📊</div>
-        <div
-          style={{
-            fontWeight: 700,
-            fontSize: 15,
-            color: "#0f172a",
-            marginBottom: 5,
-          }}
-        >
-          Graphiques & analyses détaillées
-        </div>
-        <div
-          style={{
-            fontSize: 12,
-            color: "#94a3b8",
-            fontFamily: "'DM Mono', monospace",
-          }}
-        >
-          Section en cours de développement
+                <Bar dataKey="transactions_legitimes" fill="#22c55e" />
+                <Bar dataKey="fraudes" fill="#ef4444" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="chart-card">
+            <h3>Risque</h3>
+
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={stats?.riskDistribution || []}
+                  dataKey="value"
+                  innerRadius={60}
+                  outerRadius={90}
+                >
+                  {(stats?.riskDistribution || []).map((e, i) => (
+                    <Cell key={i} fill={e.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>

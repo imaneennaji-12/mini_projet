@@ -1,28 +1,82 @@
+:root {
+  --sidebar-width: 260px;
+  --sidebar-collapsed: 72px;
+  --topbar-height: 64px;
+}
+
+/* =========================
+   APP ROOT
+   ========================= */
 .app-layout {
-  display: flex;
   min-height: 100vh;
-}
-
-.main-content {
-  flex: 1;
-  margin-left: 260px; /* Largeur sidebar */
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-
-.page-content {
-  flex: 1;
-  padding: 28px 32px;
   background: #f1f5f9;
 }
 
+/* =========================
+   SIDEBAR STATE CONTROL
+   ========================= */
+.app-layout {
+  --current-sidebar: var(--sidebar-width);
+}
+
+.app-layout.collapsed {
+  --current-sidebar: var(--sidebar-collapsed);
+}
+
+/* =========================
+   TOPBAR
+   ========================= */
+.topbar {
+  position: fixed;
+  top: 0;
+  left: var(--current-sidebar);
+  right: 0;
+
+  height: var(--topbar-height);
+
+  display: flex;
+  align-items: center;
+
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+
+  z-index: 50;
+
+  transition: left 0.3s ease;
+}
+
+/* =========================
+   MAIN AREA
+   ========================= */
+.app-main {
+  margin-left: var(--current-sidebar);
+  padding-top: var(--topbar-height);
+
+  min-height: 100vh;
+
+  transition: margin-left 0.3s ease;
+}
+
+/* contenu page */
+.app-page {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* =========================
+   MOBILE
+   ========================= */
 @media (max-width: 768px) {
-  .main-content {
+  .topbar {
+    left: 0;
+  }
+
+  .app-main {
     margin-left: 0;
   }
 
-  .page-content {
-    padding: 16px;
+  .app-layout {
+    --current-sidebar: 0px;
   }
 }

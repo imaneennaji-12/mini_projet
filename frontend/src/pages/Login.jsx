@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function LoginPage() {
@@ -7,8 +7,15 @@ export default function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -30,7 +37,7 @@ export default function LoginPage() {
       }
 
       localStorage.setItem("fs_token", data.token);
-      navigate("/Dashboard");
+      navigate("/dashboard");
     } catch {
       setError("Serveur inaccessible. Vérifiez que Flask tourne.");
     } finally {
@@ -40,45 +47,56 @@ export default function LoginPage() {
 
   return (
     <div
-      style={{ display: "flex", minHeight: "100vh", fontFamily: "sans-serif" }}
+      style={{
+        display: "flex",
+        minHeight: "100vh",
+        fontFamily: "sans-serif",
+        flexDirection: isMobile ? "column" : "row",
+      }}
     >
-      {/* Gauche */}
+      {/* ===== GAUCHE ===== */}
       <div
         style={{
-          width: "50%",
+          width: isMobile ? "100%" : "50%",
           background:
             "linear-gradient(135deg, hsl(222, 47%, 11%) 0%, hsl(214, 55%, 22%) 100%)",
           color: "#fff",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "space-between",
-          padding: "48px",
+          justifyContent: isMobile ? "center" : "space-between",
+          padding: isMobile ? "32px 24px" : "48px",
           alignItems: "flex-start",
-
-          borderTopRightRadius: "40px",
-          borderBottomRightRadius: "40px",
+          borderTopRightRadius: isMobile ? "0" : "40px",
+          borderBottomRightRadius: isMobile ? "0" : "40px",
+          borderBottomLeftRadius: isMobile ? "40px" : "0",
+          gap: isMobile ? "20px" : "0",
         }}
       >
-        <div style={{ fontSize: "20px", fontWeight: "700" }}>
-          🛡️ AnalyseTransaction IA{" "}
+        <div
+          style={{ fontSize: isMobile ? "16px" : "20px", fontWeight: "700" }}
+        >
+          🛡️ AnalyseTransaction IA
         </div>
+
         <div>
           <h1
             style={{
               color: "#ebeef2",
-              fontSize: "36px",
+              fontSize: isMobile ? "24px" : "36px",
               fontWeight: "800",
               marginBottom: "16px",
               lineHeight: "1.2",
             }}
           >
             Protégez vos clients
-            <br /> <span style={{ color: "#f3f5f7" }}>en temps réel.</span>
+            <br />
+            <span style={{ color: "#f3f5f7" }}>en temps réel.</span>
           </h1>
+
           <p
             style={{
               color: "#94a3b8",
-              fontSize: "16px",
+              fontSize: isMobile ? "14px" : "16px",
               lineHeight: "1.6",
               textAlign: "left",
             }}
@@ -87,12 +105,13 @@ export default function LoginPage() {
             Surveillez, analysez et agissez instantanément sur chaque
             transaction suspecte.
           </p>
+
           <div
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(3,1fr)",
-              gap: "24px",
-              marginTop: "32px",
+              gap: isMobile ? "16px" : "24px",
+              marginTop: isMobile ? "20px" : "32px",
             }}
           >
             {[
@@ -103,39 +122,46 @@ export default function LoginPage() {
               <div key={s.label}>
                 <div
                   style={{
-                    fontSize: "24px",
+                    fontSize: isMobile ? "18px" : "24px",
                     fontWeight: "700",
                     color: "#3b82f6",
                   }}
                 >
                   {s.value}
                 </div>
-                <div style={{ fontSize: "13px", color: "#64748b" }}>
+                <div style={{ fontSize: "12px", color: "#64748b" }}>
                   {s.label}
                 </div>
               </div>
             ))}
           </div>
         </div>
-        <p style={{ fontSize: "13px", color: "#475569" }}>
-          © 2026 AnalyseTransaction IA{" "}
-        </p>
+
+        {!isMobile && (
+          <p style={{ fontSize: "13px", color: "#475569" }}>
+            © 2026 AnalyseTransaction IA
+          </p>
+        )}
       </div>
 
-      {/* Droite */}
+      {/* ===== DROITE ===== */}
       <div
         style={{
-          width: "50%",
+          width: isMobile ? "100%" : "50%",
           background: "#f8fafc",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "48px",
+          padding: isMobile ? "32px 24px" : "48px",
         }}
       >
         <div style={{ width: "100%", maxWidth: "400px" }}>
           <h2
-            style={{ fontSize: "26px", fontWeight: "700", marginBottom: "6px" }}
+            style={{
+              fontSize: isMobile ? "22px" : "26px",
+              fontWeight: "700",
+              marginBottom: "6px",
+            }}
           >
             Connexion sécurisée
           </h2>
@@ -169,6 +195,7 @@ export default function LoginPage() {
                   borderRadius: "8px",
                   outline: "none",
                   boxSizing: "border-box",
+                  background: "#fff",
                 }}
               />
             </div>
@@ -199,6 +226,7 @@ export default function LoginPage() {
                     borderRadius: "8px",
                     outline: "none",
                     boxSizing: "border-box",
+                    background: "#fff",
                   }}
                 />
                 <button
@@ -249,6 +277,7 @@ export default function LoginPage() {
                 fontSize: "15px",
                 fontWeight: "600",
                 cursor: loading ? "not-allowed" : "pointer",
+                transition: "background 0.2s",
               }}
             >
               {loading ? "Connexion en cours…" : "Se connecter"}
@@ -267,6 +296,19 @@ export default function LoginPage() {
           >
             🔒 TLS 1.3 · JWT HS256 · Accès journalisé
           </div>
+
+          {isMobile && (
+            <p
+              style={{
+                textAlign: "center",
+                fontSize: "11px",
+                color: "#cbd5e1",
+                marginTop: "16px",
+              }}
+            >
+              © 2026 AnalyseTransaction IA
+            </p>
+          )}
         </div>
       </div>
     </div>

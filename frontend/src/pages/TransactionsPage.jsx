@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./TransactionsPage.css";
+import { useSocket } from "../hooks/useSocket";
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState([]);
+  const socketRef = useSocket();
   const [filteredStatus, setFilteredStatus] = useState("all");
   const [filteredRisk, setFilteredRisk] = useState("all");
   const [search, setSearch] = useState("");
@@ -34,6 +36,35 @@ export default function TransactionsPage() {
         setLoading(false);
       });
   }, []);
+  // ─── WebSocket : mises à jour temps réel ───
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    socket.on("new_transaction", (data) => {
+      setTransactions((prev) => {
+        if (prev.find((t) => t.id_transaction === data.id_transaction)) {
+          return prev;
+        }
+        return [data, ...prev];
+      });
+    });
+
+    socket.on("transaction_updated", (data) => {
+      setTransactions((prev) =>
+        prev.map((t) =>
+          t.id_transaction === data.id_transaction
+            ? { ...t, statut: data.statut }
+            : t,
+        ),
+      );
+    });
+
+    return () => {
+      socket.off("new_transaction");
+      socket.off("transaction_updated");
+    };
+  }, [socketRef]);
   /** Normalisation des statuts pour gérer les variations de text*/
   const normalizeStatus = (statut) => {
     if (!statut) return "pending";
