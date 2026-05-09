@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import "./InvestigationsPage.css";
 import { useSocket } from "../hooks/useSocket";
+import { api } from "../lib/api"; // ← AJOUT : client HTTP avec auth
 
 export default function InvestigationsPage() {
   const [transactions, setTransactions] = useState([]);
@@ -41,16 +42,13 @@ export default function InvestigationsPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Charger les données — SEULEMENT les transactions en attente réponse client
+  // ─── Chargement avec api.js ───
   const fetchData = () => {
     setLoading(true);
-    fetch("http://127.0.0.1:5000/api/investigations")
-      .then((res) => {
-        if (!res.ok) throw new Error("Erreur serveur");
-        return res.json();
-      })
+    api
+      .get("/api/investigations")
       .then((data) => {
-        // 🔥 FILTRE : uniquement celles avec statut "Investigation" (email envoyé, attente réponse)
+        // 🔥 FILTRE : uniquement celles avec statut "Investigation"
         const waitingForClient = data.filter(
           (t) => t.status === "investigation" || t.statut === "Investigation",
         );
@@ -58,7 +56,7 @@ export default function InvestigationsPage() {
         setLoading(false);
       })
       .catch((err) => {
-        setError(err.message);
+        setError(err.message || "Erreur serveur");
         setLoading(false);
       });
   };
@@ -90,11 +88,10 @@ export default function InvestigationsPage() {
     (t) => t.status === "investigation" || t.statut === "Investigation",
   );
   const expired = filtered.filter((t) => {
-    // Si tu as un champ date d'envoi ou expiration, tu peux filtrer ici
-    return false; // À adapter selon tes données
+    return false;
   });
 
-  // Action : REFUSER uniquement
+  // ─── MODIFIÉ : Refuser avec api.post ───
   const handleRefuse = async (txn) => {
     if (
       !window.confirm("Êtes-vous sûr de vouloir refuser cette transaction ?")
@@ -103,42 +100,26 @@ export default function InvestigationsPage() {
     }
 
     try {
-      const res = await fetch(
-        `http://127.0.0.1:5000/api/transactions/${txn.id}/refuse`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id_user: 1,
-            commentaire: "Refusée — client non répondu / fraude confirmée",
-          }),
-        },
-      );
-      if (!res.ok) throw new Error("Erreur refus");
-      fetchData(); // Refresh
+      await api.post(`/api/transactions/${txn.id}/refuse`, {
+        id_user: 1,
+        commentaire: "Refusée — client non répondu / fraude confirmée",
+      });
+      fetchData();
     } catch (err) {
-      alert(err.message);
+      alert(err.message || "Erreur refus");
     }
   };
 
-  // Renvoyer l'email (optionnel)
+  // ─── MODIFIÉ : Renvoyer email avec api.post ───
   const handleResendEmail = async (txn) => {
     try {
-      const res = await fetch(
-        `http://127.0.0.1:5000/api/transactions/${txn.id}/investigate`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            subject: "Rappel : Confirmation de transaction suspecte",
-            message: `Relance — Merci de confirmer la transaction ${txn.id}.`,
-          }),
-        },
-      );
-      if (!res.ok) throw new Error("Erreur envoi");
+      await api.post(`/api/transactions/${txn.id}/investigate`, {
+        subject: "Rappel : Confirmation de transaction suspecte",
+        message: `Relance — Merci de confirmer la transaction ${txn.id}.`,
+      });
       alert("Email de relance envoyé");
     } catch (err) {
-      alert(err.message);
+      alert(err.message || "Erreur envoi");
     }
   };
 
@@ -383,7 +364,6 @@ export default function InvestigationsPage() {
                     </div>
 
                     <div className="card-actions-preview">
-                      {/* 🔥 SEUL BOUTON : REFUSER */}
                       <button
                         className="icon-btn danger-hover"
                         onClick={(e) => {
@@ -467,7 +447,6 @@ export default function InvestigationsPage() {
                           </div>
                         </div>
 
-                        {/* 🔥 SEULE ACTION : REFUSER */}
                         <div className="action-buttons single-action">
                           <button
                             className="btn-danger-full"

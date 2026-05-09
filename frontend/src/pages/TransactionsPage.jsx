@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./TransactionsPage.css";
 import { useSocket } from "../hooks/useSocket";
+import { api } from "../lib/api"; // ← AJOUT : client HTTP avec auth
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState([]);
@@ -19,23 +20,20 @@ export default function TransactionsPage() {
     message: "",
   });
 
+  // ─── Chargement initial avec api.js ───
   useEffect(() => {
-    fetch("http://127.0.0.1:5000/api/transactions")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Erreur lors du chargement des transactions");
-        }
-        return response.json();
-      })
+    api
+      .get("/api/transactions")
       .then((data) => {
         setTransactions(data);
         setLoading(false);
       })
       .catch((err) => {
-        setError(err.message);
+        setError(err.message || "Erreur lors du chargement des transactions");
         setLoading(false);
       });
   }, []);
+
   // ─── WebSocket : mises à jour temps réel ───
   useEffect(() => {
     const socket = socketRef.current;
@@ -65,7 +63,8 @@ export default function TransactionsPage() {
       socket.off("transaction_updated");
     };
   }, [socketRef]);
-  /** Normalisation des statuts pour gérer les variations de text*/
+
+  /** Normalisation des statuts pour gérer les variations de texte */
   const normalizeStatus = (statut) => {
     if (!statut) return "pending";
     const s = statut.toLowerCase();
@@ -109,6 +108,7 @@ export default function TransactionsPage() {
       }),
     };
   };
+
   /** Logique pour traiter les statuts "pending" avec risque "low" comme "validated" */
   const getEffectiveStatus = (transaction) => {
     const status = normalizeStatus(transaction.statut);
@@ -118,6 +118,7 @@ export default function TransactionsPage() {
 
     return status;
   };
+
   /** Calcul des comptes pour les filtres rapides */
   const counts = useMemo(() => {
     const statuses = transactions.map((t) => getEffectiveStatus(t));
@@ -130,6 +131,7 @@ export default function TransactionsPage() {
       validated: statuses.filter((s) => s === "validated").length,
     };
   }, [transactions]);
+
   /** Logique de filtrage combiné pour recherche, statut et risque */
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
@@ -215,27 +217,17 @@ Merci de confirmer si cette transaction a bien été effectuée par vous.`;
     });
     setShowInvestigationForm(true);
   };
+
+  // ─── MODIFIÉ : utilise api.post ───
   const handleSendInvestigation = async () => {
     try {
-      const response = await fetch(
-        `http://127.0.0.1:5000/api/transactions/${selectedTransaction.id_transaction}/investigate`,
+      await api.post(
+        `/api/transactions/${selectedTransaction.id_transaction}/investigate`,
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            subject: investigationForm.subject,
-            message: investigationForm.message,
-          }),
+          subject: investigationForm.subject,
+          message: investigationForm.message,
         },
       );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Erreur lors de l'investigation");
-      }
 
       setTransactions((prev) =>
         prev.map((t) =>
@@ -247,10 +239,9 @@ Merci de confirmer si cette transaction a bien été effectuée par vous.`;
 
       setShowInvestigationForm(false);
       setSelectedTransaction(null);
-
       alert("Email envoyé avec succès");
     } catch (error) {
-      alert(error.message);
+      alert(error.message || "Erreur lors de l'investigation");
     }
   };
 
@@ -261,64 +252,33 @@ Merci de confirmer si cette transaction a bien été effectuée par vous.`;
   const toggleExpand = (id) => {
     setExpandedId(expandedId === id ? null : id);
   };
+
+  // ─── MODIFIÉ : utilise api.post + api.get ───
   const handleValidate = async (transaction) => {
     try {
-      const response = await fetch(
-        `http://127.0.0.1:5000/api/transactions/${transaction.id_transaction}/validate`,
+      await api.post(
+        `/api/transactions/${transaction.id_transaction}/validate`,
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            id_user: 1,
-            commentaire: "Transaction validée par l'agent",
-          }),
+          id_user: 1,
+          commentaire: "Transaction validée par l'agent",
         },
       );
-      const refreshed = await fetch("http://127.0.0.1:5000/api/transactions");
-      const data = await refreshed.json();
+
+      const data = await api.get("/api/transactions");
       setTransactions(data);
-
-      if (!response.ok) {
-        throw new Error(data.error || "Erreur lors de la validation");
-      }
-
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id_transaction === transaction.id_transaction
-            ? { ...t, statut: "Validée" }
-            : t,
-        ),
-      );
-
-      console.log(data);
     } catch (error) {
       console.error(error.message);
-      alert(error.message);
+      alert(error.message || "Erreur lors de la validation");
     }
   };
+
+  // ─── MODIFIÉ : utilise api.post ───
   const handleRefuse = async (transaction) => {
     try {
-      const response = await fetch(
-        `http://127.0.0.1:5000/api/transactions/${transaction.id_transaction}/refuse`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            id_user: 1,
-            commentaire: "Transaction refusée par l'agent",
-          }),
-        },
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Erreur lors du refus");
-      }
+      await api.post(`/api/transactions/${transaction.id_transaction}/refuse`, {
+        id_user: 1,
+        commentaire: "Transaction refusée par l'agent",
+      });
 
       setTransactions((prev) =>
         prev.map((t) =>
@@ -327,11 +287,9 @@ Merci de confirmer si cette transaction a bien été effectuée par vous.`;
             : t,
         ),
       );
-
-      console.log(data);
     } catch (error) {
       console.error(error.message);
-      alert(error.message);
+      alert(error.message || "Erreur lors du refus");
     }
   };
 

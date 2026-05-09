@@ -1,4 +1,3 @@
-
 from flask_socketio import emit 
 from flask import request, jsonify
 from flask import request, jsonify
@@ -14,6 +13,7 @@ from app.models import (
     Client,
     DecisionHumaine,
     Investigation,
+    FraudeDetectee,  # ← AJOUT
 )
 
 
@@ -171,6 +171,8 @@ def validate_transaction(id_transaction):
         "statut": transaction.statut,
         "decision": decision.decision
     }), 200
+
+
 @routes_bp.route("/transactions/<int:id_transaction>/refuse", methods=["POST"])
 def refuse_transaction(id_transaction):
     data = request.get_json()
@@ -195,6 +197,68 @@ def refuse_transaction(id_transaction):
     )
 
     db.session.add(decision)
+
+    # ─── ✅ CRÉER FRAUDE DETECTEE (agent a confirmé la fraude) ───
+    existing_fraude = FraudeDetectee.query.filter_by(
+        id_transaction=transaction.id_transaction
+    ).first()
+    
+    if not existing_fraude:
+        fraude = FraudeDetectee(
+            id_transaction=transaction.id_transaction,
+            confirme_par_agent=True,           # ← L'agent a confirmé
+            confirme_par_client=False,
+            type_fraude='inconnu',
+            montant_fraude=transaction.montant
+        )
+        db.session.add(fraude)
+
+    # ─── ✅ ENVOYER EMAIL AU CLIENT ───
+    client = transaction.client
+    if client and client.email:
+        subject = f"🚨 Alerte sécurité — Transaction refusée #{transaction.id_transaction}"
+        
+        html_body = f"""
+<p>Bonjour {client.nom} {client.prenom},</p>
+
+<p>Nous avons <strong>refusé</strong> une transaction sur votre compte pour des raisons de sécurité.</p>
+
+<hr>
+
+<p><strong>Détails de la transaction bloquée :</strong></p>
+<ul>
+    <li>Référence : {transaction.id_transaction}</li>
+    <li>Montant : {transaction.montant} EUR</li>
+    <li>Catégorie : {transaction.merchant_category}</li>
+    <li>Localisation : {transaction.city}, {transaction.country}</li>
+    <li>Date : {transaction.date_transaction}</li>
+</ul>
+
+<p><strong>Raison du refus :</strong></p>
+<p style="background:#fef2f2; padding:12px; border-radius:8px; border-left:4px solid #dc2626;">
+    {commentaire or "Transaction suspecte détectée par notre système de sécurité."}
+</p>
+
+<p><strong>Que faire ?</strong></p>
+<ul>
+    <li>Si vous reconnaissez cette transaction, contactez immédiatement notre service client.</li>
+    <li>Si vous ne reconnaissez pas cette transaction, votre compte est sécurisé. Aucun débit n'a été effectué.</li>
+    <li>Votre carte peut être bloquée pour votre protection. Contactez-nous pour la débloquer.</li>
+</ul>
+
+<p style="color:#dc2626; font-weight:bold;">
+    ⚠️ N'ignorez pas cet email si vous n'êtes pas à l'origine de cette transaction.
+</p>
+
+<p>
+Cordialement,<br>
+<strong>Service sécurité bancaire</strong><br>
+📞 +212 5XX-XXXXXX<br>
+📧 securite@banque.com
+</p>
+"""
+        send_investigation_email(client.email, subject, html_body)
+
     db.session.commit()
     socketio.emit("transaction_updated", {
         "id_transaction": transaction.id_transaction,
@@ -204,11 +268,13 @@ def refuse_transaction(id_transaction):
     })
 
     return jsonify({
-        "message": "Transaction refusée avec succès",
+        "message": "Transaction refusée avec succès — Email envoyé au client",
         "id_transaction": transaction.id_transaction,
         "statut": transaction.statut,
-        "decision": decision.decision
+        "decision": decision.decision,
+        "email_sent": bool(client and client.email)
     }), 200
+
 
 @routes_bp.route("/transactions/<int:id_transaction>/investigate", methods=["POST"])
 def investigate_transaction(id_transaction):
@@ -314,22 +380,117 @@ Service sécurité bancaire
         "statut": transaction.statut,
         "email": client.email
     }), 200
+
+
 @routes_bp.route("/client-response/<token>/<reponse>", methods=["GET"])
 def client_response(token, reponse):
     investigation = Investigation.query.filter_by(token=token).first()
 
     if not investigation:
-        return "Lien invalide", 404
+        return """
+        <html>
+        <head><meta charset="UTF-8"><style>
+            body{font-family:sans-serif;text-align:center;padding:50px;color:#dc2626}
+        </style></head>
+        <body><h2>❌ Lien invalide</h2><p>Ce lien n'existe pas ou a été supprimé.</p></body>
+        </html>
+        """, 404
 
     if investigation.token_expiry and investigation.token_expiry < datetime.utcnow():
         investigation.statut_inv = "expiré"
         db.session.commit()
-        return "Lien expiré", 400
+        return """
+        <html>
+        <head><meta charset="UTF-8"><style>
+            body{font-family:sans-serif;text-align:center;padding:50px;color:#f59e0b}
+        </style></head>
+        <body><h2>⏰ Lien expiré</h2><p>Ce lien a expiré. Contactez votre banque.</p></body>
+        </html>
+        """, 400
 
     if reponse not in ["oui", "non"]:
-        return "Réponse invalide", 400
+        return """
+        <html>
+        <head><meta charset="UTF-8"><style>
+            body{font-family:sans-serif;text-align:center;padding:50px;color:#dc2626}
+        </style></head>
+        <body><h2>❌ Réponse invalide</h2></body>
+        </html>
+        """, 400
+        
     if investigation.reponse_client is not None:
-        return "Réponse déjà enregistrée", 200
+        # Déjà répondu — afficher la page avec boutons désactivés
+        deja_repondu = investigation.reponse_client == "oui"
+        return f"""
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {{
+                    font-family: 'Segoe UI', Arial, sans-serif;
+                    text-align: center;
+                    padding: 60px 20px;
+                    background: #f8fafc;
+                }}
+                .card {{
+                    background: white;
+                    max-width: 500px;
+                    margin: 0 auto;
+                    padding: 40px;
+                    border-radius: 16px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                }}
+                .icon {{ font-size: 64px; margin-bottom: 20px; }}
+                h2 {{ color: #1e293b; margin-bottom: 12px; }}
+                p {{ color: #64748b; line-height: 1.6; }}
+                .buttons {{
+                    display: flex;
+                    gap: 16px;
+                    justify-content: center;
+                    margin-top: 32px;
+                }}
+                .btn {{
+                    padding: 14px 32px;
+                    border-radius: 10px;
+                    text-decoration: none;
+                    font-weight: 600;
+                    font-size: 16px;
+                    display: inline-block;
+                    opacity: 0.4;
+                    cursor: not-allowed;
+                    pointer-events: none;
+                }}
+                .btn-oui {{ background: #16a34a; color: white; }}
+                .btn-non {{ background: #dc2626; color: white; }}
+                .badge {{
+                    display: inline-block;
+                    padding: 8px 20px;
+                    border-radius: 20px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    margin-top: 16px;
+                }}
+                .badge-success {{ background: #dcfce7; color: #166534; }}
+                .badge-danger {{ background: #fee2e2; color: #991b1b; }}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <div class="icon">{"✅" if deja_repondu else "🚨"}</div>
+                <h2>Réponse déjà enregistrée</h2>
+                <p>Vous avez déjà répondu <strong>{"OUI" if deja_repondu else "NON"}</strong> à cette demande.</p>
+                <span class="badge {"badge-success" if deja_repondu else "badge-danger"}">
+                    {"Transaction confirmée" if deja_repondu else "Fraude signalée"}
+                </span>
+                <div class="buttons">
+                    <span class="btn btn-oui">✅ Oui, c'est moi</span>
+                    <span class="btn btn-non">❌ Non, fraude</span>
+                </div>
+            </div>
+        </body>
+        </html>
+        """, 200
 
     investigation.reponse_client = reponse
     investigation.date_reponse = datetime.utcnow()
@@ -337,9 +498,39 @@ def client_response(token, reponse):
     if reponse == "oui":
         investigation.statut_inv = "confirmé_client"
         investigation.transaction.statut = "Validée"
+        icon = "✅"
+        titre = "Merci pour votre confirmation"
+        message = "Votre transaction a été validée avec succès."
+        couleur = "#166534"
+        bg = "#dcfce7"
+        badge = "Transaction confirmée"
     else:
         investigation.statut_inv = "refusé_client"
         investigation.transaction.statut = "Refusée"
+        
+        # ─── ✅ CRÉER FRAUDE DETECTEE ───
+        existing_fraude = FraudeDetectee.query.filter_by(
+            id_transaction=investigation.transaction.id_transaction
+        ).first()
+        
+        if not existing_fraude:
+            fraude = FraudeDetectee(
+                id_transaction=investigation.transaction.id_transaction,
+                confirme_par_agent=False,
+                confirme_par_client=True,
+                type_fraude='inconnu',
+                montant_fraude=investigation.transaction.montant
+            )
+            db.session.add(fraude)
+        else:
+            existing_fraude.confirme_par_client = True
+        
+        icon = "🚨"
+        titre = "Fraude signalée"
+        message = "Votre signalement a été enregistré. Votre compte est sécurisé et aucun débit n'a été effectué."
+        couleur = "#991b1b"
+        bg = "#fee2e2"
+        badge = "Fraude signalée"
 
     db.session.commit()
     socketio.emit("investigation_resolved", {
@@ -349,9 +540,76 @@ def client_response(token, reponse):
         "statut_investigation": investigation.statut_inv
     })
 
-    return """
-    <h2>Merci pour votre réponse</h2>
-    <p>Votre réponse a bien été enregistrée.</p>
+    # Page avec boutons désactivés après clic
+    return f"""
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {{
+                font-family: 'Segoe UI', Arial, sans-serif;
+                text-align: center;
+                padding: 60px 20px;
+                background: #f8fafc;
+            }}
+            .card {{
+                background: white;
+                max-width: 500px;
+                margin: 0 auto;
+                padding: 40px;
+                border-radius: 16px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            }}
+            .icon {{ font-size: 64px; margin-bottom: 20px; }}
+            h2 {{ color: {couleur}; margin-bottom: 12px; }}
+            p {{ color: #64748b; line-height: 1.6; }}
+            .badge {{
+                display: inline-block;
+                padding: 10px 24px;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: 600;
+                margin-top: 20px;
+                background: {bg};
+                color: {couleur};
+            }}
+            .buttons {{
+                display: flex;
+                gap: 16px;
+                justify-content: center;
+                margin-top: 32px;
+            }}
+            .btn {{
+                padding: 14px 32px;
+                border-radius: 10px;
+                text-decoration: none;
+                font-weight: 600;
+                font-size: 16px;
+                display: inline-block;
+                opacity: 0.4;
+                cursor: not-allowed;
+                pointer-events: none;
+                user-select: none;
+            }}
+            .btn-oui {{ background: #16a34a; color: white; }}
+            .btn-non {{ background: #dc2626; color: white; }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div class="icon">{icon}</div>
+            <h2>{titre}</h2>
+            <p>{message}</p>
+            <span class="badge">{badge}</span>
+            
+            <div class="buttons">
+                <span class="btn btn-oui">✅ Oui, c'est moi</span>
+                <span class="btn btn-non">❌ Non, fraude</span>
+            </div>
+        </div>
+    </body>
+    </html>
     """
 
 @routes_bp.route("/investigations", methods=["GET"])

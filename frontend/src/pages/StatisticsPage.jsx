@@ -21,6 +21,8 @@ import {
 import "./StatisticsPage.css";
 import { io } from "socket.io-client";
 
+import { useAuth } from "../context/AuthContext"; // ← AJOUT
+import { api } from "../lib/api"; // ← AJOUT
 import RapportCard from "../components/RapportCard";
 
 /* ══ HELPERS ══ */
@@ -65,7 +67,7 @@ export default function Statistics() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const token = localStorage.getItem("fs_token");
+  const { token } = useAuth(); // ← MODIFIÉ : utilise AuthContext au lieu de localStorage direct
 
   const fraudHourData = stats?.fraudHourData || [];
   const scatterData = stats?.scatterData || [];
@@ -76,21 +78,13 @@ export default function Statistics() {
 
   useEffect(() => {
     if (!token) navigate("/", { replace: true });
-  }, [navigate]);
+  }, [token, navigate]);
 
+  // ─── Chargement initial avec api.js ───
   useEffect(() => {
     if (!token) return;
-    fetch("http://127.0.0.1:5000/stats/advanced", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => {
-        if (r.status === 401) {
-          localStorage.removeItem("fs_token");
-          navigate("/", { replace: true });
-          return null;
-        }
-        return r.json();
-      })
+    api
+      .get("/stats/advanced")
       .then((d) => {
         setStats(d);
         setLoading(false);
@@ -101,13 +95,12 @@ export default function Statistics() {
       });
   }, [token]);
 
+  // ─── WebSocket : refresh auto avec api.js ───
   useEffect(() => {
     const socket = io("http://127.0.0.1:5000");
     socket.on("new_transaction", () => {
-      fetch("http://127.0.0.1:5000/stats/advanced", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => r.json())
+      api
+        .get("/stats/advanced")
         .then((d) => setStats(d))
         .catch(console.error);
     });
