@@ -8,7 +8,8 @@ export function useSocket() {
 
   useEffect(() => {
     const socket = io(SOCKET_URL, {
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
+      auth: { token: localStorage.getItem("fs_token") },
     });
 
     socketRef.current = socket;

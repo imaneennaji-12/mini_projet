@@ -3,6 +3,7 @@ from app.models import Transaction   # adapte selon ton projet
 
 notifications_bp = Blueprint("notifications", __name__)
 
+
 @notifications_bp.route("/api/notifications", methods=["GET"])
 def get_notifications():
 

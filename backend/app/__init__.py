@@ -30,9 +30,10 @@ def create_app():
     from app.routes import routes_bp
     from app.routes import Dashboard_bp
     from app.routes import statistics_bp
+    from app.routes import settings_bp
     app.register_blueprint(statistics_bp)
     app.register_blueprint(notifications_bp)
-
+    app.register_blueprint(settings_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(routes_bp, url_prefix="/api")
     app.register_blueprint(Dashboard_bp)

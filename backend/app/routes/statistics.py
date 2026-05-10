@@ -2,10 +2,13 @@ from datetime import datetime, timedelta
 from flask import Blueprint, jsonify
 from sqlalchemy import func
 from app.models import Investigation, Transaction, FraudeDetectee, db, DecisionHumaine
+from app.utils.token import token_required, role_required
 
 statistics_bp = Blueprint("statistics", __name__)
 
 @statistics_bp.route("/stats/advanced", methods=["GET"])
+@token_required
+@role_required("admin", "analyst")
 def stats_advanced():
 
     today    = datetime.utcnow().date()

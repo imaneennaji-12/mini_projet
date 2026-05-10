@@ -3,6 +3,7 @@ from flask import request, jsonify
 from flask import request, jsonify
 from datetime import datetime, timedelta
 from app import socketio 
+from app.utils.token import token_required, role_required
 
 from app.routes import routes_bp
 from app.services.ml_service import predict_transaction
@@ -17,7 +18,9 @@ from app.models import (
 )
 
 
+
 @routes_bp.route("/transactions/analyze", methods=["POST"])
+
 def analyze_transaction():
     data = request.get_json()
 
@@ -90,6 +93,8 @@ def analyze_transaction():
 
     return jsonify(result), 200
 @routes_bp.route("/transactions", methods=["GET"])
+@token_required
+@role_required("admin", "analyst", "viewer")
 def get_transactions():
     transactions = Transaction.query.all()
 
@@ -131,6 +136,8 @@ def get_transactions():
 
 
 @routes_bp.route("/transactions/<int:id_transaction>/validate", methods=["POST"])
+@token_required
+@role_required("admin", "analyst")
 def validate_transaction(id_transaction):
     data = request.get_json()
 
@@ -138,7 +145,7 @@ def validate_transaction(id_transaction):
     if not transaction:
         return jsonify({"error": "Transaction introuvable"}), 404
 
-    id_user  = data.get("id_user")
+    id_user  = request.current_user.get("user_id") 
     commentaire = data.get("commentaire", "")
 
     if not id_user:
@@ -174,6 +181,8 @@ def validate_transaction(id_transaction):
 
 
 @routes_bp.route("/transactions/<int:id_transaction>/refuse", methods=["POST"])
+@token_required
+@role_required("admin", "analyst")
 def refuse_transaction(id_transaction):
     data = request.get_json()
 
@@ -181,7 +190,7 @@ def refuse_transaction(id_transaction):
     if not transaction:
         return jsonify({"error": "Transaction introuvable"}), 404
 
-    id_user = data.get("id_user")
+    id_user = request.current_user.get("user_id") 
     commentaire = data.get("commentaire", "")
 
     if not id_user:
@@ -277,6 +286,8 @@ Cordialement,<br>
 
 
 @routes_bp.route("/transactions/<int:id_transaction>/investigate", methods=["POST"])
+@token_required
+@role_required("admin", "analyst")
 def investigate_transaction(id_transaction):
     data = request.get_json()
 
@@ -383,6 +394,7 @@ Service sécurité bancaire
 
 
 @routes_bp.route("/client-response/<token>/<reponse>", methods=["GET"])
+
 def client_response(token, reponse):
     investigation = Investigation.query.filter_by(token=token).first()
 

@@ -2,10 +2,13 @@ from datetime import datetime, timedelta
 from flask import Blueprint, jsonify
 from sqlalchemy import func
 from app.routes import Dashboard_bp
+from app.utils.token import token_required, role_required
 from app.models import Investigation, Transaction, FraudeDetectee, db, DecisionHumaine
 
 
 @Dashboard_bp.route("/stats", methods=["GET"])
+@role_required("admin", "analyst", "viewer")
+@token_required
 def stats():
     # 📦 Total transactions
     total_transactions = Transaction.query.count()

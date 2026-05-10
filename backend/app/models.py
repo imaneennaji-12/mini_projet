@@ -65,13 +65,19 @@ class Transaction(db.Model):
 
 class User(db.Model):
     __tablename__ = 'users'
-    id_user       = db.Column(db.Integer, primary_key=True)
-    nom            = db.Column(db.String(100), nullable=False)
-    email          = db.Column(db.String(120), unique=True, nullable=False)
-    role           = db.Column(db.String(30), default='analyste')  # 'admin', 'analyste'
-    mot_de_passe_hash = db.Column(db.String(256))
-    actif          = db.Column(db.Boolean, default=True)
-    date_creation  = db.Column(db.DateTime, default=datetime.utcnow)
+    id_user            = db.Column(db.Integer, primary_key=True)
+    nom                = db.Column(db.String(100), nullable=False)
+    prenom             = db.Column(db.String(50))        # ← AJOUTÉ
+    email              = db.Column(db.String(120), unique=True, nullable=False)
+    telephone          = db.Column(db.String(20))        # ← AJOUTÉ
+    role               = db.Column(db.String(30), default='analyste')
+    mot_de_passe_hash  = db.Column(db.String(256))
+    actif              = db.Column(db.Boolean, default=True)
+    date_creation      = db.Column(db.DateTime, default=datetime.utcnow)
+    # Optionnel : photo de profil
+    avatar_url         = db.Column(db.String(255))       # ← AJOUTÉ (optionnel)
+
+    decisions = db.relationship('DecisionHumaine', backref='user', lazy=True)
 
     decisions = db.relationship('DecisionHumaine', backref='user', lazy=True)
 
