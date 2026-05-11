@@ -1,6 +1,5 @@
 from flask_socketio import emit 
 from flask import request, jsonify
-from flask import request, jsonify
 from datetime import datetime, timedelta
 from app import socketio 
 from app.utils.token import token_required, role_required
@@ -14,54 +13,64 @@ from app.models import (
     Client,
     DecisionHumaine,
     Investigation,
-    FraudeDetectee,  # ← AJOUT
+    FraudeDetectee,
+    ThresholdHistory,  # ← AJOUTÉ
 )
 
 
+def get_current_thresholds():
+    """Récupère les seuils actuels depuis la base de données."""
+    latest = ThresholdHistory.query.order_by(
+        ThresholdHistory.date_modification.desc()
+    ).first()
+    
+    if latest:
+        return {
+            "risk_medium": float(latest.risk_medium),
+            "risk_high": float(latest.risk_high)
+        }
+    # Seuils par défaut
+    return {
+        "risk_medium": 0.45,
+        "risk_high": 0.75
+    }
+
 
 @routes_bp.route("/transactions/analyze", methods=["POST"])
-
 def analyze_transaction():
     data = request.get_json()
 
     result = predict_transaction(data)
 
     client = Client.query.get(data["id_client"])
-    client_id = data["id_client"]
     if not client:
         return jsonify({"error": "Client introuvable"}), 404
 
-    
-
+    # ═══ RÉCUPÉRER LES SEUILS DYNAMIQUES ═══
+    thresholds = get_current_thresholds()
     risk_score = result["risk_score"]
 
-    if risk_score >= 0.8:
+    # Comparaison avec les seuils de la base de données
+    if risk_score >= thresholds["risk_high"]:
         risk_level = "Élevé"
-    elif risk_score >= 0.5:
+    elif risk_score >= thresholds["risk_medium"]:
         risk_level = "Moyen"
     else:
         risk_level = "Faible"
+
     alert_signals = []
     
-    if risk_level == "Élevé" or risk_level == "Moyen" :
-        
-
-        if data["transaction_hour"] <= 4:
-           alert_signals.append("Heure inhabituelle")
-
-        if data["foreign_transaction"] == 1:
-           alert_signals.append("Transaction étrangère")
-
-        if data["location_mismatch"] == 1:
-           alert_signals.append("Localisation incohérente")
-
-        if data["amount"] > 3000:
+    if risk_level in ("Élevé", "Moyen"):
+        if data.get("transaction_hour", 12) <= 4:
+            alert_signals.append("Heure inhabituelle")
+        if data.get("foreign_transaction") == 1:
+            alert_signals.append("Transaction étrangère")
+        if data.get("location_mismatch") == 1:
+            alert_signals.append("Localisation incohérente")
+        if data.get("amount", 0) > 3000:
             alert_signals.append("Montant atypique")
-
-        if data["device_trust_score"] < 0.3:
+        if data.get("device_trust_score", 1) < 0.3:
             alert_signals.append("Nouveau dispositif")
-
-      
 
     transaction = Transaction(
         id_transaction=data["id_transaction"],
@@ -82,16 +91,52 @@ def analyze_transaction():
         alert_signals=", ".join(alert_signals),
         date_transaction=datetime.utcnow()
     )
+    
     if risk_level == "Faible":
-       transaction.statut = "Validée"
+        transaction.statut = "Validée"
     else:
-       transaction.statut = "En attente"
+        transaction.statut = "En attente"
 
     db.session.add(transaction)
     db.session.commit()
-    socketio.emit("new_transaction", {"status": "ok"})
 
-    return jsonify(result), 200
+    # Récupérer le client frais pour la relation
+    client = transaction.client
+
+    socketio.emit("new_transaction", {
+        "id_transaction": transaction.id_transaction,
+        "id_client": transaction.id_client,
+        "client_nom_complet": f"{client.nom} {client.prenom}" if client else None,
+        "client_nom": client.nom if client else None,
+        "client_prenom": client.prenom if client else None,
+        "client_email": client.email if client else None,
+        "client_telephone": client.telephone if client else None,
+        "client_ville": client.ville if client else None,
+        "client_pays": client.pays if client else None,
+        "client_date_creation": client.date_creation.strftime("%Y-%m-%d %H:%M:%S") if client and client.date_creation else None,
+        "montant": transaction.montant,
+        "transaction_hour": transaction.transaction_hour,
+        "date_transaction": transaction.date_transaction.strftime("%Y-%m-%d %H:%M:%S") if transaction.date_transaction else None,
+        "city": transaction.city,
+        "country": transaction.country,
+        "device_trust_score": transaction.device_trust_score,
+        "velocity_last_24h": transaction.velocity_last_24h,
+        "cardholder_age": transaction.cardholder_age,
+        "foreign_transaction": transaction.foreign_transaction,
+        "location_mismatch": transaction.location_mismatch,
+        "merchant_category": transaction.merchant_category,
+        "prediction": transaction.prediction,
+        "risk_score": transaction.risk_score,
+        "risk_level": transaction.risk_level,
+        "statut": transaction.statut,
+        "alert_signals": transaction.alert_signals
+    })
+
+    return jsonify({
+        **result,
+        "risk_level": risk_level,
+        "thresholds_used": thresholds  # ← Info debug
+    }), 200
 @routes_bp.route("/transactions", methods=["GET"])
 @token_required
 @role_required("admin", "analyst", "viewer")
@@ -627,15 +672,13 @@ def client_response(token, reponse):
 @routes_bp.route("/investigations", methods=["GET"])
 def get_investigations():
     transactions = Transaction.query.all()
-
     result = []
 
+    confirmed_count = Investigation.query.filter_by(reponse_client="oui").count()
+
     for t in transactions:
-        # condition investigation
         if t.statut == "Investigation" or (t.statut == "En attente" and t.risk_level == "Élevé"):
-
             client = t.client
-
             result.append({
                 "id": t.id_transaction,
                 "client": f"{client.nom} {client.prenom}" if client else "",
@@ -645,14 +688,17 @@ def get_investigations():
                 "location": f"{t.city}, {t.country}",
                 "date": t.date_transaction.strftime("%Y-%m-%d"),
                 "time": t.date_transaction.strftime("%H:%M:%S"),
-                "riskLevel": t.risk_level.lower(),
-                "riskScore": int(t.risk_score * 100),
+                "riskLevel": t.risk_level.lower() if t.risk_level else "",
+                "riskScore": int(t.risk_score * 100) if t.risk_score else 0,
                 "status": t.statut.lower(),
                 "email": client.email if client else "",
                 "phone": client.telephone if client else "",
                 "flags": t.alert_signals.split(",") if t.alert_signals else [],
                 "deviceType": "Inconnu",
-                "ipAddress": "192.168.1.1"
+                "ipAddress": "192.168.1.1",
             })
 
-    return jsonify(result), 200
+    return jsonify({
+        "transactions": result,
+        "confirmedCount": confirmed_count  
+    }), 200

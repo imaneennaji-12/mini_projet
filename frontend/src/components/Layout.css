@@ -9,7 +9,7 @@
    ========================= */
 .app-layout {
   min-height: 100vh;
-  background: #f1f5f9;
+  background: var(--bg-primary);
 }
 
 /* =========================
@@ -59,7 +59,7 @@
 
 /* contenu page */
 .app-page {
-  padding: 24px;
+  padding: 2px;
   max-width: 1400px;
   margin: 0 auto;
 }

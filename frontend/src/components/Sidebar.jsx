@@ -12,15 +12,8 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
+import { useTranslation } from "react-i18next"; // ← AJOUT
 import "./Sidebar.css";
-
-const navItems = [
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/transactions", label: "Transactions", icon: ArrowLeftRight },
-  { path: "/investigations", label: "Investigations", icon: Search },
-  { path: "/statistics", label: "Statistiques", icon: BarChart3 },
-  { path: "/settings", label: "Paramètres", icon: Settings },
-];
 
 export default function Sidebar({
   collapsed,
@@ -28,12 +21,33 @@ export default function Sidebar({
   mobileOpen,
   closeSidebar,
 }) {
+  const { t } = useTranslation(); // ← AJOUT
   const { user, logout } = useAuth();
 
   const displayName =
     user?.prenom && user?.nom
       ? `${user.prenom} ${user.nom}`
       : user?.nom || "Utilisateur";
+
+  const navItems = [
+    {
+      path: "/dashboard",
+      label: t("sidebar.dashboard"),
+      icon: LayoutDashboard,
+    },
+    {
+      path: "/transactions",
+      label: t("sidebar.transactions"),
+      icon: ArrowLeftRight,
+    },
+    {
+      path: "/investigations",
+      label: t("sidebar.investigations"),
+      icon: Search,
+    },
+    { path: "/statistics", label: t("sidebar.statistics"), icon: BarChart3 },
+    { path: "/settings", label: t("sidebar.settings"), icon: Settings },
+  ];
 
   return (
     <>
@@ -56,8 +70,8 @@ export default function Sidebar({
             <Shield size={22} />
           </div>
           <div className="brand-text">
-            <span className="brand-name">FraudShield</span>
-            <span className="brand-tag">Pro</span>
+            <span className="brand-name">AnalyseTransaction </span>
+            <span className="brand-tag">IA</span>
           </div>
         </div>
 
@@ -91,23 +105,25 @@ export default function Sidebar({
             </div>
             <div className="user-info">
               <span className="user-name">{displayName}</span>
-              <span className="user-role">
-                {user?.role === "banker" ? "Banquier" : "Analyste"}
-              </span>
+              <span className="user-role">{user?.role}</span>
             </div>
           </div>
 
           {/* Logout */}
-          <button className="logout-btn" onClick={logout} title="Déconnexion">
+          <button
+            className="logout-btn"
+            onClick={logout}
+            title={t("sidebar.logout")}
+          >
             <LogOut size={18} />
-            <span>Déconnexion</span>
+            <span>{t("sidebar.logout")}</span>
           </button>
 
           {/* Collapse — desktop seulement */}
           <button
             className="sidebar-collapse-btn"
             onClick={onToggle}
-            title={collapsed ? "Développer" : "Réduire"}
+            title={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
           >
             {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>

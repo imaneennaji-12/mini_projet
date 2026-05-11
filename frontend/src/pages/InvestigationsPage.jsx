@@ -5,14 +5,12 @@ import {
   AlertTriangle,
   Mail,
   CheckCircle,
-  XCircle,
   ChevronDown,
   ChevronUp,
   Shield,
   ShieldAlert,
   ShieldCheck,
   MessageSquare,
-  Filter,
   User,
   MapPin,
   Smartphone,
@@ -20,43 +18,43 @@ import {
   Calendar,
   Activity,
   Send,
-  X,
   FileText,
   History,
   Ban,
 } from "lucide-react";
 import "./InvestigationsPage.css";
 import { useSocket } from "../hooks/useSocket";
-import { api } from "../lib/api"; // ← AJOUT : client HTTP avec auth
+import { api } from "../lib/api";
+import { useTranslation } from "react-i18next";
 
 export default function InvestigationsPage() {
+  const { t } = useTranslation();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const socketRef = useSocket();
-  const [selectedTxn, setSelectedTxn] = useState(null);
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [notes, setNotes] = useState({});
   const [newNote, setNewNote] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [confirmedCount, setConfirmedCount] = useState(0);
 
-  // ─── Chargement avec api.js ───
   const fetchData = () => {
     setLoading(true);
     api
       .get("/api/investigations")
       .then((data) => {
-        // 🔥 FILTRE : uniquement celles avec statut "Investigation"
-        const waitingForClient = data.filter(
-          (t) => t.status === "investigation" || t.statut === "Investigation",
+        setTransactions(
+          data.transactions.filter(
+            (t) => t.status === "investigation" || t.statut === "Investigation",
+          ),
         );
-        setTransactions(waitingForClient);
+        setConfirmedCount(data.confirmedCount);
         setLoading(false);
       })
       .catch((err) => {
-        setError(err.message || "Erreur serveur");
+        setError(err.message || t("investigations.error"));
         setLoading(false);
       });
   };
@@ -65,61 +63,47 @@ export default function InvestigationsPage() {
     fetchData();
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [t]);
 
-  // Filtrage local (recherche + statut)
   const filtered = transactions.filter((t) => {
     const matchesSearch =
       !searchQuery ||
-      t.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.client?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.merchant?.toLowerCase().includes(searchQuery.toLowerCase());
-
+      [t.id, t.client, t.merchant].some((f) =>
+        f?.toLowerCase().includes(searchQuery.toLowerCase()),
+      );
     const matchesStatus =
       filterStatus === "all" ||
       (filterStatus === "critical" && t.riskLevel === "élevé");
-
     return matchesSearch && matchesStatus;
   });
 
-  // Stats
   const critical = filtered.filter((t) => t.riskLevel === "élevé");
   const waiting = filtered.filter(
     (t) => t.status === "investigation" || t.statut === "Investigation",
   );
-  const expired = filtered.filter((t) => {
-    return false;
-  });
 
-  // ─── MODIFIÉ : Refuser avec api.post ───
   const handleRefuse = async (txn) => {
-    if (
-      !window.confirm("Êtes-vous sûr de vouloir refuser cette transaction ?")
-    ) {
-      return;
-    }
-
+    if (!window.confirm(t("investigations.confirmRefuse"))) return;
     try {
       await api.post(`/api/transactions/${txn.id}/refuse`, {
         id_user: 1,
-        commentaire: "Refusée — client non répondu / fraude confirmée",
+        commentaire: "Refusée",
       });
       fetchData();
     } catch (err) {
-      alert(err.message || "Erreur refus");
+      alert(err.message || t("investigations.error"));
     }
   };
 
-  // ─── MODIFIÉ : Renvoyer email avec api.post ───
   const handleResendEmail = async (txn) => {
     try {
       await api.post(`/api/transactions/${txn.id}/investigate`, {
-        subject: "Rappel : Confirmation de transaction suspecte",
-        message: `Relance — Merci de confirmer la transaction ${txn.id}.`,
+        subject: t("investigations.resendSubject"),
+        message: t("investigations.resendMessage", { id: txn.id }),
       });
-      alert("Email de relance envoyé");
+      alert(t("investigations.resendSuccess"));
     } catch (err) {
-      alert(err.message || "Erreur envoi");
+      alert(err.message || t("investigations.error"));
     }
   };
 
@@ -135,76 +119,67 @@ export default function InvestigationsPage() {
     setNewNote("");
   };
 
-  const toggleExpand = (id) => {
-    setExpandedId(expandedId === id ? null : id);
-  };
+  const toggleExpand = (id) => setExpandedId(expandedId === id ? null : id);
 
-  // Helpers UI
   const getRiskBadge = (level, score) => {
     const normalized = level?.toLowerCase() || "";
     const score100 = score || 0;
-
-    if (normalized.includes("élev") || normalized.includes("high")) {
+    if (normalized.includes("élev") || normalized.includes("high"))
       return (
         <span className="badge-risk risk-high">
           <ShieldAlert size={14} />
-          CRITIQUE {score100}/100
+          {t("investigations.critical")} {score100}/100
         </span>
       );
-    }
-    if (normalized.includes("moyen") || normalized.includes("medium")) {
+    if (normalized.includes("moyen") || normalized.includes("medium"))
       return (
         <span className="badge-risk risk-medium">
           <Shield size={14} />
-          MOYEN {score100}/100
+          {t("investigations.medium")} {score100}/100
         </span>
       );
-    }
     return (
       <span className="badge-risk risk-low">
         <ShieldCheck size={14} />
-        FAIBLE {score100}/100
+        {t("investigations.low")} {score100}/100
       </span>
     );
   };
 
   const getStatusBadge = (status) => {
     const s = status?.toLowerCase() || "";
-    if (s.includes("investigation")) {
+    if (s.includes("investigation"))
       return (
         <span className="badge-status status-investigating">
           <Clock size={12} />
-          En attente réponse client
+          {t("investigations.waitingClient")}
         </span>
       );
-    }
     return (
       <span className="badge-status status-pending">
         <Clock size={12} />
-        En attente
+        {t("investigations.waiting")}
       </span>
     );
   };
 
   return (
     <div className="investigations-page">
-      {/* ─── HEADER ─── */}
       <div className="page-header-section">
         <div>
-          <h1 className="page-title">Investigations en cours</h1>
+          <h1 className="page-title">{t("investigations.title")}</h1>
           <p className="page-subtitle">
-            {filtered.length} transaction(s) en attente de réponse client
+            {filtered.length} {t("investigations.subtitle")}
           </p>
         </div>
         <div className="header-actions">
           <button className="btn-ghost" onClick={fetchData}>
             <History size={16} />
-            Actualiser
+            {t("investigations.refresh")}
           </button>
         </div>
       </div>
 
-      {/* ─── STATS CARDS ─── */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon bg-blue">
@@ -212,54 +187,53 @@ export default function InvestigationsPage() {
           </div>
           <div className="stat-content">
             <div className="stat-value text-blue">{filtered.length}</div>
-            <div className="stat-label">Emails envoyés</div>
+            <div className="stat-label">{t("investigations.emailsSent")}</div>
           </div>
         </div>
-
         <div className="stat-card">
           <div className="stat-icon bg-red">
             <ShieldAlert size={20} />
           </div>
           <div className="stat-content">
             <div className="stat-value text-red">{critical.length}</div>
-            <div className="stat-label">Risque critique</div>
+            <div className="stat-label">{t("investigations.criticalRisk")}</div>
           </div>
         </div>
-
         <div className="stat-card">
           <div className="stat-icon bg-amber">
             <Clock size={20} />
           </div>
           <div className="stat-content">
             <div className="stat-value text-amber">{waiting.length}</div>
-            <div className="stat-label">En attente réponse</div>
+            <div className="stat-label">
+              {t("investigations.waitingResponse")}
+            </div>
           </div>
         </div>
-
         <div className="stat-card">
           <div className="stat-icon bg-green">
             <CheckCircle size={20} />
           </div>
           <div className="stat-content">
-            <div className="stat-value text-green">—</div>
-            <div className="stat-label">Confirmées client</div>
+            <div className="stat-value text-green">{confirmedCount}</div>
+            <div className="stat-label">
+              {t("investigations.confirmedClient")}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ─── FILTERS BAR ─── */}
       <div className="filters-bar-modern">
         <div className="search-box">
           <Search size={18} className="search-icon" />
           <input
             type="text"
-            placeholder="Rechercher par ID, client, marchand..."
+            placeholder={t("investigations.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="search-input-modern"
           />
         </div>
-
         <div className="filter-tabs-wrapper">
           <div className="filter-tabs">
             <button
@@ -268,7 +242,7 @@ export default function InvestigationsPage() {
               }
               onClick={() => setFilterStatus("all")}
             >
-              Tous
+              {t("investigations.all")}
             </button>
             <button
               className={
@@ -276,31 +250,30 @@ export default function InvestigationsPage() {
               }
               onClick={() => setFilterStatus("critical")}
             >
-              Critique
+              {t("investigations.critical")}
             </button>
           </div>
         </div>
       </div>
 
-      {/* ─── LISTE DES TRANSACTIONS ─── */}
       <div className="transactions-list">
         {loading ? (
           <div className="loading-state">
             <div className="spinner"></div>
-            <p>Chargement des investigations...</p>
+            <p>{t("investigations.loading")}</p>
           </div>
         ) : error ? (
           <div className="error-state">
             <AlertTriangle size={32} />
             <p>{error}</p>
-            <button onClick={fetchData}>Réessayer</button>
+            <button onClick={fetchData}>{t("investigations.retry")}</button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="empty-state">
             <Mail size={48} />
-            <p>Aucune investigation en attente</p>
+            <p>{t("investigations.noInvestigations")}</p>
             <span className="empty-sub">
-              Les transactions en attente de réponse client apparaîtront ici
+              {t("investigations.noInvestigationsSub")}
             </span>
           </div>
         ) : (
@@ -308,13 +281,11 @@ export default function InvestigationsPage() {
             const isOpen = expandedId === txn.id;
             const txnNotes = notes[txn.id] || [];
             const isCritical = txn.riskLevel?.toLowerCase().includes("élev");
-
             return (
               <div
                 key={txn.id}
                 className={`investigation-card ${isCritical ? "card-critical" : ""} ${isOpen ? "expanded" : ""}`}
               >
-                {/* CARD HEADER */}
                 <div
                   className="card-header"
                   onClick={() => toggleExpand(txn.id)}
@@ -329,7 +300,6 @@ export default function InvestigationsPage() {
                         <Mail size={20} className="text-blue" />
                       )}
                     </div>
-
                     <div className="card-meta">
                       <div className="card-meta-top">
                         <span className="txn-id font-mono">{txn.id}</span>
@@ -337,7 +307,7 @@ export default function InvestigationsPage() {
                         {isCritical && (
                           <span className="badge-risk risk-high">
                             <ShieldAlert size={12} />
-                            CRITIQUE {txn.riskScore}/100
+                            {t("investigations.critical")} {txn.riskScore}/100
                           </span>
                         )}
                       </div>
@@ -356,13 +326,11 @@ export default function InvestigationsPage() {
                       </div>
                     </div>
                   </div>
-
                   <div className="card-header-right">
                     <div className="txn-date">
                       <Calendar size={14} />
                       {txn.date} {txn.time}
                     </div>
-
                     <div className="card-actions-preview">
                       <button
                         className="icon-btn danger-hover"
@@ -370,7 +338,7 @@ export default function InvestigationsPage() {
                           e.stopPropagation();
                           handleRefuse(txn);
                         }}
-                        title="Refuser la transaction"
+                        title={t("investigations.refuseTransaction")}
                       >
                         <Ban size={16} />
                       </button>
@@ -391,15 +359,13 @@ export default function InvestigationsPage() {
                   </div>
                 </div>
 
-                {/* EXPANDED CONTENT */}
                 {isOpen && (
                   <div className="card-body">
                     <div className="details-grid">
-                      {/* LEFT COLUMN - INFO & ACTIONS */}
                       <div className="details-section">
                         <h4 className="section-title">
                           <Activity size={16} />
-                          Signaux d'alerte
+                          {t("investigations.alertSignals")}
                         </h4>
                         <div className="signals-grid">
                           {txn.flags?.map((flag, i) => (
@@ -408,10 +374,11 @@ export default function InvestigationsPage() {
                               {flag.trim()}
                             </span>
                           )) || (
-                            <span className="no-signals">Aucun signal</span>
+                            <span className="no-signals">
+                              {t("investigations.noSignals")}
+                            </span>
                           )}
                         </div>
-
                         <div className="info-grid">
                           <div className="info-item">
                             <span className="info-label">
@@ -423,15 +390,16 @@ export default function InvestigationsPage() {
                           </div>
                           <div className="info-item">
                             <span className="info-label">
-                              <Smartphone size={14} /> Appareil
+                              <Smartphone size={14} />{" "}
+                              {t("investigations.device")}
                             </span>
                             <span className="info-value">
-                              {txn.deviceType || "Inconnu"}
+                              {txn.deviceType || t("investigations.unknown")}
                             </span>
                           </div>
                           <div className="info-item">
                             <span className="info-label">
-                              <Mail size={14} /> Email
+                              <Mail size={14} /> {t("investigations.email")}
                             </span>
                             <span className="info-value">
                               {txn.email || "—"}
@@ -439,14 +407,13 @@ export default function InvestigationsPage() {
                           </div>
                           <div className="info-item">
                             <span className="info-label">
-                              <User size={14} /> Téléphone
+                              <User size={14} /> {t("investigations.phone")}
                             </span>
                             <span className="info-value">
                               {txn.phone || "—"}
                             </span>
                           </div>
                         </div>
-
                         <div className="action-buttons single-action">
                           <button
                             className="btn-danger-full"
@@ -455,43 +422,41 @@ export default function InvestigationsPage() {
                             <Ban size={18} />
                             <div className="btn-content">
                               <span className="btn-label">
-                                Refuser la transaction
+                                {t("investigations.refuseTransaction")}
                               </span>
                               <span className="btn-sublabel">
-                                Marquer comme fraude
+                                {t("investigations.markAsFraud")}
                               </span>
                             </div>
                           </button>
-
                           <button
                             className="btn-ghost"
                             onClick={() => handleResendEmail(txn)}
                           >
                             <Send size={16} />
-                            Renvoyer l'email
+                            {t("investigations.resendEmail")}
                           </button>
                         </div>
                       </div>
-
-                      {/* RIGHT COLUMN - NOTES */}
                       <div className="details-section">
                         <h4 className="section-title">
                           <FileText size={16} />
-                          Notes d'investigation
+                          {t("investigations.investigationNotes")}
                           <span className="note-count">{txnNotes.length}</span>
                         </h4>
-
                         <div className="notes-list">
                           {txnNotes.length === 0 ? (
                             <div className="no-notes">
                               <MessageSquare size={24} />
-                              <p>Aucune note pour le moment</p>
+                              <p>{t("investigations.noNotes")}</p>
                             </div>
                           ) : (
                             txnNotes.map((note, i) => (
                               <div key={i} className="note-item">
                                 <div className="note-header">
-                                  <span className="note-author">Agent</span>
+                                  <span className="note-author">
+                                    {t("investigations.agent")}
+                                  </span>
                                   <span className="note-date">{note.date}</span>
                                 </div>
                                 <p className="note-text">{note.text}</p>
@@ -499,13 +464,12 @@ export default function InvestigationsPage() {
                             ))
                           )}
                         </div>
-
                         <div className="note-input-area">
                           <input
                             type="text"
                             value={newNote}
                             onChange={(e) => setNewNote(e.target.value)}
-                            placeholder="Ajouter une note..."
+                            placeholder={t("investigations.addNotePlaceholder")}
                             className="note-input"
                             onKeyPress={(e) =>
                               e.key === "Enter" && addNote(txn.id)

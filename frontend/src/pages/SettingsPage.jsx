@@ -1,46 +1,175 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react"; // ← useRef AJOUTÉ
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
+import { useTranslation } from "react-i18next";
 import {
   User,
-  Bell,
   Shield,
-  Database,
-  Mail,
+  Activity,
+  Globe,
   Save,
   CheckCircle,
   AlertTriangle,
   Key,
-  Moon,
-  Sun,
   Lock,
   Eye,
   EyeOff,
   RefreshCw,
   ChevronRight,
-  Trash2,
-  Download,
-  Activity,
-  Cpu,
-  Wifi,
-  Server,
-  HardDrive,
-  Clock,
-  Zap,
+  Moon,
+  Sun,
+  History,
 } from "lucide-react";
 import "./SettingsPage.css";
 
+/* ══════════════════════════════════════════════
+   CONSTANTES
+══════════════════════════════════════════════ */
+const LANGUAGES = [
+  { value: "fr", label: "Français", flag: "🇫🇷" },
+  { value: "en", label: "English", flag: "🇬🇧" },
+];
+
+/* ══════════════════════════════════════════════
+   COMPOSANTS UTILITAIRES
+══════════════════════════════════════════════ */
+function FieldError({ msg }) {
+  if (!msg) return null;
+  return (
+    <span className="field-error">
+      <AlertTriangle size={11} />
+      {msg}
+    </span>
+  );
+}
+
+function PwdInput({ value, onChange, placeholder }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="pwd-wrap">
+      <input
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+      />
+      <button
+        type="button"
+        className="pwd-eye"
+        onClick={() => setShow((v) => !v)}
+      >
+        {show ? <EyeOff size={14} /> : <Eye size={14} />}
+      </button>
+    </div>
+  );
+}
+
+function StrengthBar({ password }) {
+  if (!password) return null;
+  const score =
+    password.length < 6
+      ? 1
+      : password.length < 10
+        ? 2
+        : /[A-Z]/.test(password) &&
+            /[0-9]/.test(password) &&
+            /[^a-zA-Z0-9]/.test(password)
+          ? 4
+          : /[A-Z]/.test(password) && /[0-9]/.test(password)
+            ? 3
+            : 2;
+  const labels = ["", "Faible", "Moyen", "Bon", "Fort"];
+  const colors = ["", "#ef4444", "#f59e0b", "#3b82f6", "#10b981"];
+  return (
+    <div className="strength-wrap">
+      <div className="strength-bar">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="strength-seg"
+            style={{ background: i <= score ? colors[score] : "#e2e8f0" }}
+          />
+        ))}
+      </div>
+      <span className="strength-label" style={{ color: colors[score] }}>
+        {labels[score]}
+      </span>
+    </div>
+  );
+}
+
+function SliderField({
+  label,
+  description,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  format,
+}) {
+  const pct = ((value - min) / (max - min)) * 100;
+  return (
+    <div className="slider-field">
+      <div className="slider-header">
+        <div>
+          <span className="slider-label">{label}</span>
+          {description && <span className="slider-desc">{description}</span>}
+        </div>
+        <span className="slider-val">{format ? format(value) : value}</span>
+      </div>
+      <div className="slider-track-wrap">
+        <div className="slider-fill" style={{ width: `${pct}%` }} />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="slider-input"
+        />
+      </div>
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange, label, description, icon: Icon }) {
+  return (
+    <div className="toggle-row">
+      <div className="toggle-left">
+        {Icon && <Icon size={16} className="toggle-icon" />}
+        <div>
+          <div className="toggle-label">{label}</div>
+          {description && <div className="toggle-desc">{description}</div>}
+        </div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        className={`toggle-switch ${checked ? "on" : ""}`}
+        onClick={() => onChange(!checked)}
+      >
+        <span className="toggle-thumb" />
+      </button>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   PAGE PRINCIPALE
+══════════════════════════════════════════════ */
 export default function SettingsPage() {
-  const { user, token, logout } = useAuth();
+  const { t, i18n } = useTranslation();
+  const { user, token } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [toast, setToast] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [thresholdsLoading, setThresholdsLoading] = useState(true);
 
-  // ── Profile ──────────────────────────────────────────────────
+  /* ── Profil ── */
   const [profile, setProfile] = useState({
     nom: "",
     prenom: "",
@@ -51,80 +180,58 @@ export default function SettingsPage() {
   });
   const [profileErrors, setProfileErrors] = useState({});
 
-  // ── Security ─────────────────────────────────────────────────
-  const [security, setSecurity] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-    sessionTimeout: 30, // minutes
+  /* ── Sécurité ── */
+  const [pwd, setPwd] = useState({
+    current: "",
+    next: "",
+    confirm: "",
   });
-  const [showCurPwd, setShowCurPwd] = useState(false);
-  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showPwdForm, setShowPwdForm] = useState(false);
 
-  // Timer ref pour le timeout de session
-  const inactivityTimer = useRef(null);
-
-  // ── Notifications ────────────────────────────────────────────
-  const [notifications, setNotifications] = useState({
-    emailAlerts: true,
-    pushAlerts: true,
-    fraudCritical: true,
-    fraudHigh: true,
-    fraudMedium: false,
-    dailyDigest: true,
-    weeklyReport: true,
-    investigationUpdates: true,
-  });
-
-  // ── System ───────────────────────────────────────────────────
-  const [system, setSystem] = useState({
-    apiEndpoint: "http://127.0.0.1:5000",
-    modelVersion: "v2.4.1",
-    autoRefresh: true,
-    refreshInterval: 30,
-    darkMode: false,
-    language: "fr",
-    timezone: "Africa/Casablanca",
-    dataRetention: 90,
-  });
-
-  // ── Thresholds ───────────────────────────────────────────────
+  /* ── Seuils ── */
   const [thresholds, setThresholds] = useState({
     riskHigh: 0.75,
     riskMedium: 0.45,
-    autoBlock: true,
-    autoBlockThreshold: 0.9,
-    velocityLimit: 10,
-    amountLimit: 50000,
   });
+  const [thresholdHistory, setThresholdHistory] = useState([]);
 
-  // ── Email templates ──────────────────────────────────────────
-  const [emailTemplates, setEmailTemplates] = useState({
-    investigationSubject: "Confirmation de transaction suspecte",
-    investigationBody:
-      "Nous avons détecté une transaction suspecte.\n\nRéférence : {transaction_id}\nMontant : {montant} MAD\nDate : {date}",
-    reminderSubject: "Rappel : Confirmation de transaction suspecte",
-    reminderBody:
-      "Relance — Merci de confirmer la transaction {transaction_id}.",
+  /* ── Affichage ── */
+  const [display, setDisplay] = useState({
+    darkMode: false,
+    language: "fr",
   });
+  const [displayLoading, setDisplayLoading] = useState(true);
 
-  const [systemStatus] = useState({
-    apiStatus: "online",
-    modelStatus: "active",
-    lastTraining: "2026-05-01",
-    dbStatus: "connected",
-    cpuUsage: 34,
-    memoryUsage: 62,
-    diskUsage: 45,
-  });
+  /* ── Ref pour user (évite le re-déclenchement du useEffect) ── */
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
-  // ════════════════════════════════════════════════════════════
-  // CHARGEMENT du profil + prefs au montage
-  // ════════════════════════════════════════════════════════════
+  /* ── Toast ── */
+  const showToast = (type, msg) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  /* ── Dark mode appliqué au document ── */
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", display.darkMode);
+  }, [display.darkMode]);
+
+  /* ── Changer la langue i18n quand display.language change ── */
+  useEffect(() => {
+    if (display.language && display.language !== i18n.language) {
+      i18n.changeLanguage(display.language);
+      document.documentElement.dir = display.language === "ar" ? "rtl" : "ltr";
+    }
+  }, [display.language, i18n]);
+
+  /* ── Chargement initial (UNE SEULE FOIS grâce à [token]) ── */
   useEffect(() => {
     if (!token) return;
 
-    // Charge le profil
+    // Charger le profil (inclut darkMode + language)
     api
       .get("/user/profile")
       .then((data) => {
@@ -136,81 +243,99 @@ export default function SettingsPage() {
           _role: data.role || "",
           _date_creation: data.date_creation || "",
         });
+        setDisplay({
+          darkMode: data.darkMode ?? false,
+          language: data.language ?? "fr",
+        });
+        // Appliquer immédiatement
+        i18n.changeLanguage(data.language ?? "fr");
+        document.documentElement.classList.toggle(
+          "dark",
+          data.darkMode ?? false,
+        );
+        document.documentElement.dir =
+          (data.language ?? "fr") === "ar" ? "rtl" : "ltr";
+
+        try {
+          localStorage.setItem(
+            "fs_prefs",
+            JSON.stringify({
+              display: {
+                darkMode: data.darkMode ?? false,
+                language: data.language ?? "fr",
+              },
+            }),
+          );
+        } catch {}
       })
       .catch(() => {
-        if (user)
+        // ← utilise userRef.current au lieu de user
+        if (userRef.current) {
           setProfile((p) => ({
             ...p,
-            nom: user.nom || "",
-            prenom: user.prenom || "",
-            email: user.email || "",
+            nom: userRef.current.nom || "",
+            prenom: userRef.current.prenom || "",
+            email: userRef.current.email || "",
           }));
+        }
+        try {
+          const saved = JSON.parse(localStorage.getItem("fs_prefs") || "{}");
+          if (saved.display) {
+            setDisplay((d) => ({ ...d, ...saved.display }));
+            i18n.changeLanguage(saved.display.language);
+            document.documentElement.classList.toggle(
+              "dark",
+              saved.display.darkMode,
+            );
+          }
+        } catch {}
       })
-      .finally(() => setProfileLoading(false));
+      .finally(() => {
+        setProfileLoading(false);
+        setDisplayLoading(false);
+      });
 
-    // Charge les préférences (timeout, notifs, etc.)
+    // Charger les seuils
     api
       .get("/user/preferences")
       .then((data) => {
-        const p = data.preferences || {};
-        if (p.security?.sessionTimeout) {
-          setSecurity((s) => ({
-            ...s,
-            sessionTimeout: p.security.sessionTimeout,
-          }));
+        if (data.thresholds) {
+          setThresholds({
+            riskMedium: Number(data.thresholds.riskMedium) || 0.45,
+            riskHigh: Number(data.thresholds.riskHigh) || 0.75,
+          });
         }
-        if (p.notifications)
-          setNotifications((n) => ({ ...n, ...p.notifications }));
-        if (p.system) setSystem((s) => ({ ...s, ...p.system }));
-        if (p.thresholds) setThresholds((t) => ({ ...t, ...p.thresholds }));
-        if (p.email) setEmailTemplates((e) => ({ ...e, ...p.email }));
+        if (data.history) setThresholdHistory(data.history);
       })
-      .catch(console.error);
-  }, [token, user]);
+      .catch((err) => {
+        console.warn("Impossible de charger les préférences serveur:", err);
+        try {
+          const saved = JSON.parse(localStorage.getItem("fs_prefs") || "{}");
+          if (saved.thresholds) {
+            setThresholds((t) => ({
+              ...t,
+              riskMedium: Number(saved.thresholds.riskMedium) || t.riskMedium,
+              riskHigh: Number(saved.thresholds.riskHigh) || t.riskHigh,
+            }));
+          }
+        } catch {}
+      })
+      .finally(() => setThresholdsLoading(false));
 
-  // ════════════════════════════════════════════════════════════
-  // TIMER DE SESSION — déconnexion réelle après inactivité
-  // ════════════════════════════════════════════════════════════
-  const resetInactivityTimer = useCallback(() => {
-    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    const ms = security.sessionTimeout * 60 * 1000;
-    inactivityTimer.current = setTimeout(() => {
-      logout();
-    }, ms);
-  }, [security.sessionTimeout, logout]);
+    // ← SEULE dépendance : token. Pas de user, pas de i18n.
+  }, [token]);
 
-  useEffect(() => {
-    if (!token) return;
-    resetInactivityTimer();
+  const persist = useCallback((key, value) => {
+    try {
+      const prev = JSON.parse(localStorage.getItem("fs_prefs") || "{}");
+      localStorage.setItem(
+        "fs_prefs",
+        JSON.stringify({ ...prev, [key]: value }),
+      );
+    } catch {}
+  }, []);
 
-    const events = ["mousedown", "keydown", "touchstart", "scroll"];
-    const listener = () => resetInactivityTimer();
-
-    events.forEach((e) => window.addEventListener(e, listener));
-    return () => {
-      events.forEach((e) => window.removeEventListener(e, listener));
-      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    };
-  }, [token, resetInactivityTimer]);
-
-  // ════════════════════════════════════════════════════════════
-  // Flash messages
-  // ════════════════════════════════════════════════════════════
-  const flashSaved = () => {
-    setSaved(true);
-    setSaveError("");
-    setTimeout(() => setSaved(false), 3000);
-  };
-  const flashError = (m) => {
-    setSaveError(m);
-    setSaved(false);
-    setTimeout(() => setSaveError(""), 4000);
-  };
-
-  // ════════════════════════════════════════════════════════════
-  // SAUVEGARDE PROFIL → PUT /api/user/profile
-  // ════════════════════════════════════════════════════════════
-  const handleSaveProfile = async () => {
+  const saveProfile = async () => {
     setSaving(true);
     setProfileErrors({});
     try {
@@ -220,1091 +345,556 @@ export default function SettingsPage() {
         email: profile.email,
         telephone: profile.telephone,
       });
-      flashSaved();
+      showToast("ok", t("settings.profileUpdated"));
     } catch (err) {
       if (err.errors) {
         setProfileErrors(err.errors);
-        flashError("Corrigez les erreurs du formulaire");
-      } else flashError(err.message || "Erreur lors de la sauvegarde");
+        showToast("err", t("settings.fixErrors"));
+      } else showToast("err", err.message || t("settings.saveError"));
     } finally {
       setSaving(false);
     }
   };
 
-  // ════════════════════════════════════════════════════════════
-  // CHANGEMENT MOT DE PASSE → POST /api/user/change-password
-  // ════════════════════════════════════════════════════════════
-  const handlePasswordChange = async () => {
-    if (security.newPassword !== security.confirmPassword) {
-      flashError("Les mots de passe ne correspondent pas");
-      return;
-    }
-    if (security.newPassword.length < 8) {
-      flashError("Minimum 8 caractères");
-      return;
-    }
+  const savePassword = async () => {
+    if (pwd.next !== pwd.confirm)
+      return showToast("err", t("settings.passwordMismatch"));
+    if (pwd.next.length < 8)
+      return showToast("err", t("settings.passwordMinLength"));
+    if (!pwd.current)
+      return showToast("err", t("settings.enterCurrentPassword"));
     setSaving(true);
     try {
       await api.post("/user/change-password", {
-        currentPassword: security.currentPassword,
-        newPassword: security.newPassword,
+        currentPassword: pwd.current,
+        newPassword: pwd.next,
       });
-      setSecurity((s) => ({
-        ...s,
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      }));
-      setShowPassword(false);
-      flashSaved();
+      setPwd({ current: "", next: "", confirm: "" });
+      setShowPwdForm(false);
+      showToast("ok", t("settings.passwordChanged"));
     } catch (err) {
-      flashError(err.message || "Erreur");
+      showToast("err", err.message || t("settings.error"));
     } finally {
       setSaving(false);
     }
   };
 
-  // ════════════════════════════════════════════════════════════
-  // SAUVEGARDE GÉNÉRIQUE → POST /api/user/preferences
-  // ════════════════════════════════════════════════════════════
-  const handleSave = async (section) => {
+  const saveThresholds = async () => {
     setSaving(true);
     try {
-      const payloads = {
-        notifications,
-        system,
-        thresholds,
-        email: emailTemplates,
-      };
-      await api.post("/user/preferences", { [section]: payloads[section] });
-      flashSaved();
+      const res = await api.post("/user/preferences", { thresholds });
+      showToast("ok", t("settings.thresholdsSaved"));
+      if (res.history) setThresholdHistory(res.history);
     } catch (err) {
-      flashError(err.message || "Erreur");
+      persist("thresholds", thresholds);
+      showToast("ok", t("settings.thresholdsSavedLocal"));
     } finally {
       setSaving(false);
     }
   };
 
-  // Sauvegarde spécifique pour la sécurité (timeout)
-  const handleSaveSecurity = async () => {
+  const saveDisplay = async () => {
     setSaving(true);
     try {
-      await api.post("/user/preferences", {
-        security: { sessionTimeout: security.sessionTimeout },
+      await api.put("/user/display", {
+        darkMode: display.darkMode,
+        language: display.language,
       });
-      flashSaved();
-      resetInactivityTimer(); // redémarre le timer avec la nouvelle valeur
+      persist("display", display);
+      showToast("ok", t("settings.displaySaved"));
     } catch (err) {
-      flashError(err.message || "Erreur");
+      persist("display", display);
+      showToast("ok", t("settings.displaySavedLocal"));
     } finally {
       setSaving(false);
     }
   };
-
-  const handleExportData = async () => {
-    try {
-      const res = await api.get("/user/export-data");
-      const blob = new Blob([JSON.stringify(res, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `export_${user?.nom}_${new Date().toISOString().split("T")[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      flashError("Erreur lors de l'export (route backend manquante ?)");
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    if (
-      !window.confirm(
-        "Êtes-vous absolument sûr ? Cette action est irréversible.",
-      )
-    )
-      return;
-    try {
-      await api.delete("/user/account");
-      logout();
-    } catch (err) {
-      flashError(err.message || "Erreur (route backend manquante ?)");
-    }
-  };
-
-  // Force du mot de passe
-  const pwdStr =
-    security.newPassword.length === 0
-      ? 0
-      : security.newPassword.length < 6
-        ? 1
-        : security.newPassword.length < 10
-          ? 2
-          : /[A-Z]/.test(security.newPassword) &&
-              /[0-9]/.test(security.newPassword)
-            ? 4
-            : 3;
-  const strLabel = ["", "Faible", "Moyen", "Bon", "Fort"];
-  const strColor = ["", "#ef4444", "#f59e0b", "#3b82f6", "#10b981"];
 
   const initials =
     `${profile.prenom?.[0] || ""}${profile.nom?.[0] || ""}`.toUpperCase() ||
     "?";
 
-  const tabs = [
-    { id: "profile", label: "Profil", icon: User },
-    { id: "security", label: "Sécurité", icon: Shield },
-    { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "thresholds", label: "Seuils & Règles", icon: Activity },
-    { id: "email", label: "Emails", icon: Mail },
-    { id: "system", label: "Système & API", icon: Server },
+  const TABS = [
+    { id: "profile", label: t("settings.profile"), icon: User },
+    { id: "security", label: t("settings.security"), icon: Shield },
+    { id: "thresholds", label: t("settings.thresholds"), icon: Activity },
+    { id: "display", label: t("settings.display"), icon: Globe },
   ];
 
-  const SaveBtn = ({ onClick }) => (
-    <button className="btn-primary" onClick={onClick} disabled={saving}>
-      {saving ? <RefreshCw size={16} className="spin" /> : <Save size={16} />}
-      Sauvegarder
-    </button>
-  );
-
   return (
-    <div className="settings-page">
-      {/* ── Header ── */}
-      <div className="settings-header">
-        <div>
-          <h1 className="page-title">Paramètres</h1>
-          <p className="page-subtitle">
-            Gérez vos préférences et la configuration du système
-          </p>
+    <div className="sp-root">
+      {toast && (
+        <div className={`sp-toast sp-toast--${toast.type}`}>
+          {toast.type === "ok" ? (
+            <CheckCircle size={15} />
+          ) : (
+            <AlertTriangle size={15} />
+          )}
+          {toast.msg}
         </div>
-        {saved && (
-          <div className="save-indicator">
-            <CheckCircle size={16} /> Sauvegardé
-          </div>
-        )}
-        {saveError && (
-          <div
-            className="save-indicator"
-            style={{
-              background: "#fef2f2",
-              color: "#dc2626",
-              border: "1px solid #fecaca",
-            }}
-          >
-            <AlertTriangle size={16} /> {saveError}
-          </div>
-        )}
+      )}
+
+      <div className="sp-header">
+        <div>
+          <h1 className="sp-title">{t("settings.title")}</h1>
+          <p className="sp-subtitle">{t("settings.subtitle")}</p>
+        </div>
       </div>
 
-      <div className="settings-layout">
-        {/* ── Sidebar ── */}
-        <div className="settings-sidebar">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={`settings-tab ${activeTab === tab.id ? "active" : ""}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <tab.icon size={18} />
-              <span>{tab.label}</span>
-              <ChevronRight size={14} className="tab-arrow" />
-            </button>
-          ))}
-          <div className="sidebar-divider" />
-          <div className="system-status-mini">
-            <div
-              className={`status-dot ${systemStatus.apiStatus === "online" ? "online" : "offline"}`}
-            />
-            <span>
-              API{" "}
-              {systemStatus.apiStatus === "online" ? "En ligne" : "Hors ligne"}
-            </span>
-          </div>
-          <div className="system-status-mini">
-            <div
-              className={`status-dot ${systemStatus.modelStatus === "active" ? "online" : "warning"}`}
-            />
-            <span>
-              Modèle{" "}
-              {systemStatus.modelStatus === "active" ? "Actif" : "Inactif"}
-            </span>
-          </div>
-        </div>
+      <div className="sp-layout">
+        <nav className="sp-nav">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                className={`sp-tab ${activeTab === tab.id ? "active" : ""}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <Icon size={17} />
+                <span>{tab.label}</span>
+                <ChevronRight size={13} className="sp-tab-arrow" />
+              </button>
+            );
+          })}
+        </nav>
 
-        <div className="settings-content">
-          {/* ══════════════════════════════════════════════
-              PROFIL
-          ══════════════════════════════════════════════ */}
+        <div className="sp-content">
+          {/* ══════════ PROFIL ══════════ */}
           {activeTab === "profile" && (
-            <div className="settings-section">
-              <h2 className="section-title">
-                <User size={20} />
-                Informations personnelles
+            <section className="sp-section">
+              <h2 className="sp-section-title">
+                <User size={19} /> {t("settings.personalInfo")}
               </h2>
-
-              <div className="profile-header">
-                <div className="avatar-section">
-                  <div className="avatar-placeholder">{initials}</div>
-                </div>
-                <div className="profile-meta">
-                  <h3>
+              <div className="sp-profile-card">
+                <div className="sp-avatar">{initials}</div>
+                <div>
+                  <div className="sp-profile-name">
                     {profile.prenom} {profile.nom}
-                  </h3>
-                  <span className="role-badge">
-                    {profile._role || user?.role || "Analyste"}
+                  </div>
+                  <span className="sp-role-badge">
+                    {profile._role || user?.role || t("settings.analyst")}
                   </span>
                   {profile._date_creation && (
-                    <p className="member-since">
-                      Membre depuis le {profile._date_creation}
-                    </p>
+                    <div className="sp-member-since">
+                      {t("settings.memberSince")} {profile._date_creation}
+                    </div>
                   )}
                 </div>
               </div>
 
               {profileLoading ? (
-                <div style={{ padding: 24, color: "#94a3b8" }}>
-                  Chargement du profil…
-                </div>
+                <div className="sp-loading">{t("settings.loading")}…</div>
               ) : (
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Prénom</label>
+                <div className="sp-form-grid">
+                  <div className="form-field">
+                    <label>{t("settings.firstName")}</label>
                     <input
                       type="text"
                       value={profile.prenom}
                       onChange={(e) =>
                         setProfile((p) => ({ ...p, prenom: e.target.value }))
                       }
-                      style={
-                        profileErrors.prenom ? { borderColor: "#ef4444" } : {}
-                      }
                     />
-                    {profileErrors.prenom && (
-                      <span style={{ color: "#ef4444", fontSize: 12 }}>
-                        {profileErrors.prenom}
-                      </span>
-                    )}
+                    <FieldError msg={profileErrors.prenom} />
                   </div>
-
-                  <div className="form-group">
-                    <label>Nom *</label>
+                  <div className="form-field">
+                    <label>
+                      {t("settings.lastName")}{" "}
+                      <span className="required">*</span>
+                    </label>
                     <input
                       type="text"
                       value={profile.nom}
                       onChange={(e) =>
                         setProfile((p) => ({ ...p, nom: e.target.value }))
                       }
-                      style={
-                        profileErrors.nom ? { borderColor: "#ef4444" } : {}
-                      }
+                      className={profileErrors.nom ? "err" : ""}
                     />
-                    {profileErrors.nom && (
-                      <span style={{ color: "#ef4444", fontSize: 12 }}>
-                        {profileErrors.nom}
-                      </span>
-                    )}
+                    <FieldError msg={profileErrors.nom} />
                   </div>
-
-                  <div className="form-group">
-                    <label>Email *</label>
+                  <div className="form-field">
+                    <label>
+                      {t("settings.email")} <span className="required">*</span>
+                    </label>
                     <input
                       type="email"
                       value={profile.email}
                       onChange={(e) =>
                         setProfile((p) => ({ ...p, email: e.target.value }))
                       }
-                      style={
-                        profileErrors.email ? { borderColor: "#ef4444" } : {}
-                      }
+                      className={profileErrors.email ? "err" : ""}
                     />
-                    {profileErrors.email && (
-                      <span style={{ color: "#ef4444", fontSize: 12 }}>
-                        {profileErrors.email}
-                      </span>
-                    )}
+                    <FieldError msg={profileErrors.email} />
                   </div>
-
-                  <div className="form-group">
-                    <label>Téléphone</label>
+                  <div className="form-field">
+                    <label>{t("settings.phone")}</label>
                     <input
                       type="tel"
                       value={profile.telephone}
                       placeholder="+212 6XX XXX XXX"
                       onChange={(e) =>
-                        setProfile((p) => ({
-                          ...p,
-                          telephone: e.target.value,
-                        }))
-                      }
-                      style={
-                        profileErrors.telephone
-                          ? { borderColor: "#ef4444" }
-                          : {}
+                        setProfile((p) => ({ ...p, telephone: e.target.value }))
                       }
                     />
-                    {profileErrors.telephone && (
-                      <span style={{ color: "#ef4444", fontSize: 12 }}>
-                        {profileErrors.telephone}
-                      </span>
-                    )}
                   </div>
                 </div>
               )}
 
-              <div className="section-actions">
+              <div className="sp-actions">
                 <button
                   className="btn-primary"
-                  onClick={handleSaveProfile}
+                  onClick={saveProfile}
                   disabled={saving || profileLoading}
                 >
                   {saving ? (
-                    <RefreshCw size={16} className="spin" />
+                    <RefreshCw size={15} className="spin" />
                   ) : (
-                    <Save size={16} />
+                    <Save size={15} />
                   )}
-                  Sauvegarder le profil
+                  {t("settings.save")}
                 </button>
               </div>
-            </div>
+            </section>
           )}
 
-          {/* ══════════════════════════════════════════════
-              SÉCURITÉ
-          ══════════════════════════════════════════════ */}
+          {/* ══════════ SÉCURITÉ ══════════ */}
           {activeTab === "security" && (
-            <div className="settings-section">
-              <h2 className="section-title">
-                <Shield size={20} />
-                Sécurité du compte
+            <section className="sp-section">
+              <h2 className="sp-section-title">
+                <Shield size={19} /> {t("settings.securityTitle")}
               </h2>
-
-              {/* Mot de passe */}
-              <div className="security-card">
-                <div className="security-item">
-                  <div className="security-info">
-                    <Key size={18} />
+              <div className="sp-security-card">
+                <div className="sp-security-row">
+                  <div className="sp-security-info">
+                    <div className="sp-security-icon">
+                      <Key size={18} />
+                    </div>
                     <div>
-                      <h4>Mot de passe</h4>
-                      <p>Modifiez votre mot de passe de connexion</p>
+                      <div className="sp-security-label">
+                        {t("settings.password")}
+                      </div>
+                      <div className="sp-security-sub">
+                        {t("settings.changePasswordDesc")}
+                      </div>
                     </div>
                   </div>
                   <button
                     className="btn-ghost"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowPwdForm((v) => !v)}
                   >
-                    {showPassword ? "Annuler" : "Modifier"}
+                    {showPwdForm ? t("settings.cancel") : t("settings.modify")}
                   </button>
                 </div>
 
-                {showPassword && (
-                  <div className="password-form">
-                    <div className="form-group">
-                      <label>Mot de passe actuel</label>
-                      <div style={{ position: "relative" }}>
-                        <input
-                          type={showCurPwd ? "text" : "password"}
-                          value={security.currentPassword}
-                          onChange={(e) =>
-                            setSecurity((s) => ({
-                              ...s,
-                              currentPassword: e.target.value,
-                            }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowCurPwd((v) => !v)}
-                          style={{
-                            position: "absolute",
-                            right: 10,
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            color: "#94a3b8",
-                          }}
-                        >
-                          {showCurPwd ? (
-                            <EyeOff size={14} />
-                          ) : (
-                            <Eye size={14} />
-                          )}
-                        </button>
-                      </div>
+                {showPwdForm && (
+                  <div className="sp-pwd-form">
+                    <div className="form-field">
+                      <label>{t("settings.currentPassword")}</label>
+                      <PwdInput
+                        value={pwd.current}
+                        onChange={(e) =>
+                          setPwd((p) => ({ ...p, current: e.target.value }))
+                        }
+                        placeholder="••••••••"
+                      />
                     </div>
-
-                    <div className="form-group">
-                      <label>Nouveau mot de passe</label>
-                      <div style={{ position: "relative" }}>
-                        <input
-                          type={showNewPwd ? "text" : "password"}
-                          placeholder="Min. 8 caractères"
-                          value={security.newPassword}
-                          onChange={(e) =>
-                            setSecurity((s) => ({
-                              ...s,
-                              newPassword: e.target.value,
-                            }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPwd((v) => !v)}
-                          style={{
-                            position: "absolute",
-                            right: 10,
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            color: "#94a3b8",
-                          }}
-                        >
-                          {showNewPwd ? (
-                            <EyeOff size={14} />
-                          ) : (
-                            <Eye size={14} />
-                          )}
-                        </button>
-                      </div>
-                      {security.newPassword && (
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            marginTop: 6,
-                          }}
-                        >
-                          <div
-                            style={{
-                              flex: 1,
-                              height: 4,
-                              borderRadius: 2,
-                              background: "#e2e8f0",
-                              overflow: "hidden",
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: `${pwdStr * 25}%`,
-                                height: "100%",
-                                background: strColor[pwdStr],
-                                transition: "all 0.3s",
-                              }}
-                            />
-                          </div>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              color: strColor[pwdStr],
-                            }}
-                          >
-                            {strLabel[pwdStr]}
-                          </span>
-                        </div>
+                    <div className="form-field">
+                      <label>{t("settings.newPassword")}</label>
+                      <PwdInput
+                        value={pwd.next}
+                        onChange={(e) =>
+                          setPwd((p) => ({ ...p, next: e.target.value }))
+                        }
+                        placeholder={t("settings.passwordMinLength")}
+                      />
+                      <StrengthBar password={pwd.next} />
+                    </div>
+                    <div className="form-field">
+                      <label>{t("settings.confirm")}</label>
+                      <PwdInput
+                        value={pwd.confirm}
+                        onChange={(e) =>
+                          setPwd((p) => ({ ...p, confirm: e.target.value }))
+                        }
+                        placeholder={t("settings.repeatPassword")}
+                      />
+                      {pwd.confirm && pwd.confirm !== pwd.next && (
+                        <FieldError msg={t("settings.passwordMismatch")} />
                       )}
                     </div>
-
-                    <div className="form-group">
-                      <label>Confirmer</label>
-                      <input
-                        type="password"
-                        value={security.confirmPassword}
-                        onChange={(e) =>
-                          setSecurity((s) => ({
-                            ...s,
-                            confirmPassword: e.target.value,
-                          }))
-                        }
-                        style={
-                          security.confirmPassword &&
-                          security.confirmPassword !== security.newPassword
-                            ? { borderColor: "#ef4444" }
-                            : {}
-                        }
-                      />
-                      {security.confirmPassword &&
-                        security.confirmPassword !== security.newPassword && (
-                          <span style={{ color: "#ef4444", fontSize: 12 }}>
-                            Les mots de passe ne correspondent pas
-                          </span>
-                        )}
-                    </div>
-
                     <button
                       className="btn-primary"
-                      onClick={handlePasswordChange}
+                      onClick={savePassword}
                       disabled={saving}
                     >
-                      <Lock size={16} />
-                      Mettre à jour
+                      {saving ? (
+                        <RefreshCw size={15} className="spin" />
+                      ) : (
+                        <Lock size={15} />
+                      )}
+                      {t("settings.updatePassword")}
                     </button>
                   </div>
                 )}
               </div>
-
-              {/* 2FA — masqué car non implémenté côté backend */}
-              <div className="security-card" style={{ opacity: 0.6 }}>
-                <div className="security-item">
-                  <div className="security-info">
-                    <Shield size={18} />
-                    <div>
-                      <h4>Authentification 2FA</h4>
-                      <p>Non implémenté — Bientôt disponible</p>
-                    </div>
-                  </div>
-                  <span
-                    className="version-badge"
-                    style={{ background: "#e2e8f0", color: "#64748b" }}
-                  >
-                    Bientôt
-                  </span>
-                </div>
-              </div>
-
-              {/* Session timeout — FONCTIONNEL */}
-              <div className="security-card">
-                <div className="security-item">
-                  <div className="security-info">
-                    <Clock size={18} />
-                    <div>
-                      <h4>Timeout de session</h4>
-                      <p>Déconnexion automatique après inactivité</p>
-                    </div>
-                  </div>
-                  <select
-                    value={security.sessionTimeout}
-                    onChange={(e) =>
-                      setSecurity((s) => ({
-                        ...s,
-                        sessionTimeout: Number(e.target.value),
-                      }))
-                    }
-                  >
-                    <option value={15}>15 minutes</option>
-                    <option value={30}>30 minutes</option>
-                    <option value={60}>1 heure</option>
-                    <option value={120}>2 heures</option>
-                  </select>
-                </div>
-                <div style={{ marginTop: 12, paddingLeft: 4 }}>
-                  <button
-                    className="btn-primary"
-                    onClick={handleSaveSecurity}
-                    disabled={saving}
-                  >
-                    {saving ? (
-                      <RefreshCw size={16} className="spin" />
-                    ) : (
-                      <Save size={16} />
-                    )}
-                    Appliquer le timeout
-                  </button>
-                </div>
-              </div>
-
-              {/* Zone danger */}
-              <div className="danger-zone">
-                <h4>
-                  <AlertTriangle size={16} /> Zone de danger
-                </h4>
-                <div className="danger-actions">
-                  <button
-                    className="btn-danger-outline"
-                    onClick={handleExportData}
-                  >
-                    <Download size={16} />
-                    Exporter mes données
-                  </button>
-                  <button
-                    className="btn-danger-outline"
-                    onClick={() => setShowDeleteConfirm(true)}
-                  >
-                    <Trash2 size={16} />
-                    Supprimer le compte
-                  </button>
-                </div>
-              </div>
-
-              {showDeleteConfirm && (
-                <div className="delete-modal">
-                  <div className="delete-modal-content">
-                    <AlertTriangle size={32} className="warning-icon" />
-                    <h3>Supprimer définitivement ?</h3>
-                    <p>
-                      Toutes vos données seront effacées. Cette action est
-                      irréversible.
-                    </p>
-                    <div className="delete-actions">
-                      <button
-                        className="btn-ghost"
-                        onClick={() => setShowDeleteConfirm(false)}
-                      >
-                        Annuler
-                      </button>
-                      <button
-                        className="btn-danger"
-                        onClick={handleDeleteAccount}
-                      >
-                        <Trash2 size={16} />
-                        Confirmer
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            </section>
           )}
 
-          {/* ══════════════════════════════════════════════
-              NOTIFICATIONS
-          ══════════════════════════════════════════════ */}
-          {activeTab === "notifications" && (
-            <div className="settings-section">
-              <h2 className="section-title">
-                <Bell size={20} />
-                Préférences de notification
-              </h2>
-
-              {[
-                {
-                  group: "Canaux",
-                  items: [
-                    {
-                      key: "emailAlerts",
-                      label: "Alertes par email",
-                      desc: "Notifications importantes par email",
-                    },
-                    {
-                      key: "pushAlerts",
-                      label: "Notifications push",
-                      desc: "Alertes temps réel dans le navigateur",
-                    },
-                  ],
-                },
-                {
-                  group: "Alertes Fraude",
-                  items: [
-                    {
-                      key: "fraudCritical",
-                      label: "Risque critique (≥75%)",
-                      desc: "Action immédiate requise",
-                    },
-                    {
-                      key: "fraudHigh",
-                      label: "Risque élevé (≥45%)",
-                      desc: "Investigation recommandée",
-                    },
-                    {
-                      key: "fraudMedium",
-                      label: "Risque moyen",
-                      desc: "Surveillance standard",
-                    },
-                  ],
-                },
-                {
-                  group: "Rapports",
-                  items: [
-                    {
-                      key: "dailyDigest",
-                      label: "Résumé quotidien",
-                      desc: "Statistiques du jour",
-                    },
-                    {
-                      key: "weeklyReport",
-                      label: "Rapport hebdomadaire",
-                      desc: "Analyse tendances",
-                    },
-                  ],
-                },
-              ].map(({ group, items }) => (
-                <div className="notification-group" key={group}>
-                  <h4>{group}</h4>
-                  <div className="toggle-list">
-                    {items.map(({ key, label, desc }) => (
-                      <div className="toggle-item" key={key}>
-                        <div className="toggle-info">
-                          <div>
-                            <span>{label}</span>
-                            <small>{desc}</small>
-                          </div>
-                        </div>
-                        <label className="toggle-switch">
-                          <input
-                            type="checkbox"
-                            checked={notifications[key]}
-                            onChange={(e) =>
-                              setNotifications((n) => ({
-                                ...n,
-                                [key]: e.target.checked,
-                              }))
-                            }
-                          />
-                          <span className="toggle-slider" />
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-
-              <div className="section-actions">
-                <SaveBtn onClick={() => handleSave("notifications")} />
-              </div>
-            </div>
-          )}
-
-          {/* ══════════════════════════════════════════════
-              SEUILS
-          ══════════════════════════════════════════════ */}
+          {/* ══════════ SEUILS ══════════ */}
           {activeTab === "thresholds" && (
-            <div className="settings-section">
-              <h2 className="section-title">
-                <Activity size={20} />
-                Seuils de détection & Règles métier
+            <section className="sp-section">
+              <h2 className="sp-section-title">
+                <Activity size={19} /> {t("settings.riskThresholds")}
               </h2>
-              <div className="threshold-cards">
-                <div className="threshold-card">
-                  <h4>Niveaux de risque</h4>
-                  <div className="threshold-inputs">
-                    {[
-                      {
-                        label: "Seuil risque élevé",
-                        key: "riskHigh",
-                        min: 0.5,
-                        max: 1,
-                        step: 0.05,
-                      },
-                      {
-                        label: "Seuil risque moyen",
-                        key: "riskMedium",
-                        min: 0.2,
-                        max: 0.7,
-                        step: 0.05,
-                      },
-                    ].map(({ label, key, min, max, step }) => (
-                      <div className="form-group" key={key}>
-                        <label>{label}</label>
-                        <div className="threshold-slider">
-                          <input
-                            type="range"
-                            min={min}
-                            max={max}
-                            step={step}
-                            value={thresholds[key]}
-                            onChange={(e) =>
-                              setThresholds((t) => ({
-                                ...t,
-                                [key]: Number(e.target.value),
-                              }))
-                            }
-                          />
-                          <span className="threshold-value">
-                            {(thresholds[key] * 100).toFixed(0)}%
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="threshold-visual">
-                    <div className="risk-bar">
+
+              {thresholdsLoading ? (
+                <div className="sp-loading">
+                  {t("settings.loadingThresholds")}…
+                </div>
+              ) : (
+                <>
+                  <div className="sp-risk-visual">
+                    <div className="sp-risk-legend">
+                      <span
+                        className="leg-dot"
+                        style={{ background: "#22c55e" }}
+                      />{" "}
+                      {t("settings.low")}
+                      <span
+                        className="leg-dot"
+                        style={{ background: "#f59e0b", marginLeft: 16 }}
+                      />{" "}
+                      {t("settings.medium")}
+                      <span
+                        className="leg-dot"
+                        style={{ background: "#ef4444", marginLeft: 16 }}
+                      />{" "}
+                      {t("settings.high")}
+                    </div>
+                    <div className="sp-risk-bar">
                       <div
-                        className="risk-segment low"
-                        style={{ width: `${thresholds.riskMedium * 100}%` }}
-                      >
-                        Faible
-                      </div>
-                      <div
-                        className="risk-segment medium"
+                        className="sp-risk-seg seg-low"
                         style={{
-                          width: `${(thresholds.riskHigh - thresholds.riskMedium) * 100}%`,
+                          width: `${(thresholds.riskMedium * 100).toFixed(1)}%`,
                         }}
                       >
-                        Moyen
+                        <span>{(thresholds.riskMedium * 100).toFixed(0)}%</span>
                       </div>
                       <div
-                        className="risk-segment high"
-                        style={{ width: `${(1 - thresholds.riskHigh) * 100}%` }}
+                        className="sp-risk-seg seg-med"
+                        style={{
+                          width: `${((thresholds.riskHigh - thresholds.riskMedium) * 100).toFixed(1)}%`,
+                        }}
                       >
-                        Élevé
+                        <span>
+                          {(
+                            (thresholds.riskHigh - thresholds.riskMedium) *
+                            100
+                          ).toFixed(0)}
+                          %
+                        </span>
+                      </div>
+                      <div
+                        className="sp-risk-seg seg-high"
+                        style={{
+                          width: `${((1 - thresholds.riskHigh) * 100).toFixed(1)}%`,
+                        }}
+                      >
+                        <span>
+                          {((1 - thresholds.riskHigh) * 100).toFixed(0)}%
+                        </span>
                       </div>
                     </div>
                   </div>
-                </div>
-                <div className="threshold-card">
-                  <h4>Règles de vélocité</h4>
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label>Transactions max / 24h</label>
-                      <input
-                        type="number"
-                        value={thresholds.velocityLimit}
-                        onChange={(e) =>
-                          setThresholds((t) => ({
-                            ...t,
-                            velocityLimit: Number(e.target.value),
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Montant max (MAD)</label>
-                      <input
-                        type="number"
-                        value={thresholds.amountLimit}
-                        onChange={(e) =>
-                          setThresholds((t) => ({
-                            ...t,
-                            amountLimit: Number(e.target.value),
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="section-actions">
-                <SaveBtn onClick={() => handleSave("thresholds")} />
-              </div>
-            </div>
-          )}
 
-          {/* ══════════════════════════════════════════════
-              EMAILS
-          ══════════════════════════════════════════════ */}
-          {activeTab === "email" && (
-            <div className="settings-section">
-              <h2 className="section-title">
-                <Mail size={20} />
-                Modèles d'emails
-              </h2>
-              <div className="email-templates">
-                <div className="template-card">
-                  <h4>Email d'investigation initial</h4>
-                  <div className="form-group">
-                    <label>Objet</label>
-                    <input
-                      type="text"
-                      value={emailTemplates.investigationSubject}
-                      onChange={(e) =>
-                        setEmailTemplates((t) => ({
+                  <div className="sp-threshold-group">
+                    <h3 className="sp-group-title">
+                      {t("settings.riskLevels")}
+                    </h3>
+                    <SliderField
+                      label={t("settings.riskMedium")}
+                      description={t("settings.riskMediumDesc")}
+                      value={thresholds.riskMedium}
+                      min={0.2}
+                      max={0.6}
+                      step={0.05}
+                      onChange={(v) =>
+                        setThresholds((t) => ({
                           ...t,
-                          investigationSubject: e.target.value,
+                          riskMedium: Math.min(v, t.riskHigh - 0.05),
                         }))
                       }
+                      format={(v) => `${(v * 100).toFixed(0)}%`}
                     />
-                  </div>
-                  <div className="form-group">
-                    <label>Corps du message</label>
-                    <textarea
-                      rows={8}
-                      value={emailTemplates.investigationBody}
-                      onChange={(e) =>
-                        setEmailTemplates((t) => ({
+                    <SliderField
+                      label={t("settings.riskHigh")}
+                      description={t("settings.riskHighDesc")}
+                      value={thresholds.riskHigh}
+                      min={0.5}
+                      max={0.95}
+                      step={0.05}
+                      onChange={(v) =>
+                        setThresholds((t) => ({
                           ...t,
-                          investigationBody: e.target.value,
+                          riskHigh: Math.max(v, t.riskMedium + 0.05),
                         }))
                       }
-                    />
-                    <small className="template-hint">
-                      Variables : {"{transaction_id}"}, {"{montant}"},{" "}
-                      {"{date}"}, {"{client_nom}"}
-                    </small>
-                  </div>
-                </div>
-                <div className="template-card">
-                  <h4>Email de relance</h4>
-                  <div className="form-group">
-                    <label>Objet</label>
-                    <input
-                      type="text"
-                      value={emailTemplates.reminderSubject}
-                      onChange={(e) =>
-                        setEmailTemplates((t) => ({
-                          ...t,
-                          reminderSubject: e.target.value,
-                        }))
-                      }
+                      format={(v) => `${(v * 100).toFixed(0)}%`}
                     />
                   </div>
-                  <div className="form-group">
-                    <label>Corps du message</label>
-                    <textarea
-                      rows={6}
-                      value={emailTemplates.reminderBody}
-                      onChange={(e) =>
-                        setEmailTemplates((t) => ({
-                          ...t,
-                          reminderBody: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="template-preview">
-                  <h4>Aperçu</h4>
-                  <div className="preview-box">
-                    <div className="preview-header">
-                      <span>De : AnalyseTransaction_IA@banque.com</span>
-                      <span>Objet : {emailTemplates.investigationSubject}</span>
-                    </div>
-                    <div className="preview-body">
-                      {emailTemplates.investigationBody
-                        .replace("{transaction_id}", "TXN-2026-001")
-                        .replace("{montant}", "12,500")
-                        .replace("{date}", "09/05/2026")}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="section-actions">
-                <SaveBtn onClick={() => handleSave("email")} />
-              </div>
-            </div>
-          )}
 
-          {/* ══════════════════════════════════════════════
-              SYSTÈME
-          ══════════════════════════════════════════════ */}
-          {activeTab === "system" && (
-            <div className="settings-section">
-              <h2 className="section-title">
-                <Server size={20} />
-                Système & API
-              </h2>
-              <div className="system-grid">
-                <div className="system-card">
-                  <h4>Configuration API</h4>
-                  <div className="form-group">
-                    <label>Endpoint API</label>
-                    <input
-                      type="text"
-                      value={system.apiEndpoint}
-                      onChange={(e) =>
-                        setSystem((s) => ({
-                          ...s,
-                          apiEndpoint: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Version du modèle ML</label>
-                    <div className="model-version">
-                      <Cpu size={16} />
-                      <span>{system.modelVersion}</span>
-                      <span className="version-badge">Actif</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="system-card">
-                  <h4>Interface</h4>
-                  <div className="toggle-item">
-                    <div className="toggle-info">
-                      {system.darkMode ? <Moon size={16} /> : <Sun size={16} />}
-                      <div>
-                        <span>Mode sombre</span>
-                      </div>
-                    </div>
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={system.darkMode}
-                        onChange={(e) =>
-                          setSystem((s) => ({
-                            ...s,
-                            darkMode: e.target.checked,
-                          }))
-                        }
-                      />
-                      <span className="toggle-slider" />
-                    </label>
-                  </div>
-                  <div className="form-group">
-                    <label>Langue</label>
-                    <select
-                      value={system.language}
-                      onChange={(e) =>
-                        setSystem((s) => ({ ...s, language: e.target.value }))
-                      }
+                  <div className="sp-actions">
+                    <button
+                      className="btn-primary"
+                      onClick={saveThresholds}
+                      disabled={saving}
                     >
-                      <option value="fr">Français</option>
-                      <option value="en">English</option>
-                      <option value="ar">العربية</option>
-                    </select>
+                      {saving ? (
+                        <RefreshCw size={15} className="spin" />
+                      ) : (
+                        <Save size={15} />
+                      )}
+                      {t("settings.saveThresholds")}
+                    </button>
                   </div>
+
+                  <div className="sp-threshold-history">
+                    <h3 className="sp-group-title">
+                      <History size={16} /> {t("settings.history")}
+                    </h3>
+                    {thresholdHistory.length === 0 ? (
+                      <div className="sp-empty-state">
+                        <History size={32} className="sp-empty-icon" />
+                        <p>{t("settings.noHistory")}</p>
+                      </div>
+                    ) : (
+                      <div className="sp-table-wrap">
+                        <table className="sp-data-table">
+                          <thead>
+                            <tr>
+                              <th>{t("settings.date")}</th>
+                              <th>{t("settings.riskMedium")}</th>
+                              <th>{t("settings.riskHigh")}</th>
+                              <th>{t("settings.modifiedBy")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {thresholdHistory.map((entry) => (
+                              <tr key={entry.id || Math.random()}>
+                                <td>{entry.date || "-"}</td>
+                                <td>
+                                  <span className="sp-badge sp-badge--warning">
+                                    {entry.riskMedium !== undefined
+                                      ? `${(Number(entry.riskMedium) * 100).toFixed(0)}%`
+                                      : "-"}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className="sp-badge sp-badge--danger">
+                                    {entry.riskHigh !== undefined
+                                      ? `${(Number(entry.riskHigh) * 100).toFixed(0)}%`
+                                      : "-"}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div className="sp-user-cell">
+                                    <div className="sp-avatar-sm">
+                                      {entry.modifiedBy
+                                        ? entry.modifiedBy
+                                            .split(" ")
+                                            .map((n) => n[0])
+                                            .join("")
+                                            .toUpperCase()
+                                        : "?"}
+                                    </div>
+                                    <span>
+                                      {entry.modifiedBy || t("settings.system")}
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
+          {/* ══════════ AFFICHAGE ══════════ */}
+          {activeTab === "display" && (
+            <section className="sp-section">
+              <h2 className="sp-section-title">
+                <Globe size={19} /> {t("settings.displayTitle")}
+              </h2>
+
+              {displayLoading ? (
+                <div className="sp-loading">
+                  {t("settings.loadingDisplay")}…
                 </div>
-              </div>
-              <div className="system-metrics">
-                <h4>État du système</h4>
-                <div className="metrics-grid">
-                  {[
-                    {
-                      Icon: Wifi,
-                      label: "API",
-                      val:
-                        systemStatus.apiStatus === "online"
-                          ? "En ligne"
-                          : "Hors ligne",
-                      cls: systemStatus.apiStatus,
-                    },
-                    {
-                      Icon: Database,
-                      label: "Base de données",
-                      val: "Connectée",
-                      cls: "connected",
-                    },
-                    {
-                      Icon: Zap,
-                      label: "CPU",
-                      val: `${systemStatus.cpuUsage}%`,
-                    },
-                    {
-                      Icon: HardDrive,
-                      label: "Mémoire",
-                      val: `${systemStatus.memoryUsage}%`,
-                    },
-                    {
-                      Icon: Server,
-                      label: "Disque",
-                      val: `${systemStatus.diskUsage}%`,
-                    },
-                    {
-                      Icon: Clock,
-                      label: "Dernier entraînement",
-                      val: systemStatus.lastTraining,
-                    },
-                  ].map(({ Icon, label, val, cls }) => (
-                    <div className="metric-item" key={label}>
-                      <Icon size={16} />
-                      <span>{label}</span>
-                      <span
-                        className={
-                          cls ? `metric-status ${cls}` : "metric-value"
-                        }
-                      >
-                        {val}
-                      </span>
+              ) : (
+                <>
+                  <div className="sp-display-group">
+                    <h3 className="sp-group-title">{t("settings.theme")}</h3>
+                    <Toggle
+                      checked={display.darkMode}
+                      onChange={(v) =>
+                        setDisplay((d) => ({ ...d, darkMode: v }))
+                      }
+                      label={
+                        display.darkMode
+                          ? t("settings.darkMode")
+                          : t("settings.lightMode")
+                      }
+                      description={t("settings.darkModeDesc")}
+                      icon={display.darkMode ? Moon : Sun}
+                    />
+                  </div>
+
+                  <div className="sp-display-group">
+                    <h3 className="sp-group-title">
+                      {t("settings.interfaceLanguage")}
+                    </h3>
+                    <div className="sp-lang-grid">
+                      {LANGUAGES.map((lang) => (
+                        <button
+                          key={lang.value}
+                          className={`sp-lang-card ${display.language === lang.value ? "selected" : ""}`}
+                          onClick={() =>
+                            setDisplay((d) => ({ ...d, language: lang.value }))
+                          }
+                        >
+                          <span className="sp-lang-flag">{lang.flag}</span>
+                          <span className="sp-lang-name">{lang.label}</span>
+                          {display.language === lang.value && (
+                            <CheckCircle size={14} className="sp-lang-check" />
+                          )}
+                        </button>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-              <div className="section-actions">
-                <SaveBtn onClick={() => handleSave("system")} />
-                <button
-                  className="btn-ghost"
-                  onClick={() => window.location.reload()}
-                >
-                  <RefreshCw size={16} />
-                  Tester la connexion
-                </button>
-              </div>
-            </div>
+                  </div>
+
+                  <div className="sp-actions">
+                    <button
+                      className="btn-primary"
+                      onClick={saveDisplay}
+                      disabled={saving}
+                    >
+                      {saving ? (
+                        <RefreshCw size={15} className="spin" />
+                      ) : (
+                        <Save size={15} />
+                      )}
+                      {t("settings.savePreferences")}
+                    </button>
+                  </div>
+                </>
+              )}
+            </section>
           )}
         </div>
       </div>

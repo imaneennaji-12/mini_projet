@@ -10,7 +10,7 @@ from flask_socketio import SocketIO
 
 migrate = Migrate()
 mail = Mail()
-socketio = SocketIO(cors_allowed_origins="http://localhost:5173", async_mode='threading')
+socketio = SocketIO()
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
@@ -21,7 +21,11 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     mail.init_app(app)
-    socketio.init_app(app) 
+    socketio.init_app(
+        app,
+        cors_allowed_origins="http://localhost:5173",
+        async_mode='threading'
+    )
 
     CORS(app, origins=["http://localhost:5173"])
     from app.routes.notifications import notifications_bp

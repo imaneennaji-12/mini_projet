@@ -75,7 +75,8 @@ class User(db.Model):
     actif              = db.Column(db.Boolean, default=True)
     date_creation      = db.Column(db.DateTime, default=datetime.utcnow)
     # Optionnel : photo de profil
-    avatar_url         = db.Column(db.String(255))       # ← AJOUTÉ (optionnel)
+    dark_mode          = db.Column(db.Boolean, default=False)
+    language           = db.Column(db.String(10), default='fr')      # ← AJOUTÉ (optionnel)
 
     decisions = db.relationship('DecisionHumaine', backref='user', lazy=True)
 
@@ -163,3 +164,17 @@ class ReponseClient(db.Model):
     reponse          = db.Column(db.String(20))   # 'oui' ou 'non'
     date_reponse     = db.Column(db.DateTime, default=datetime.utcnow)
     ip_client        = db.Column(db.String(50)) 
+
+class ThresholdHistory(db.Model):
+    __tablename__ = 'threshold_history'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id_user = db.Column(db.Integer, db.ForeignKey('users.id_user'), nullable=False)
+    
+    risk_medium = db.Column(db.Float, nullable=False)
+    risk_high = db.Column(db.Float, nullable=False)
+    
+    date_modification = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relation
+    user = db.relationship('User', backref='threshold_modifications')

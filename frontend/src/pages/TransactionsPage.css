@@ -1,21 +1,25 @@
 .transactions-page {
   padding: 24px;
-  background: #f6f8fb;
+  background: var(--bg-primary); /* ← fond dynamique */
   min-height: 100vh;
   color: #1f2937;
   font-family: Arial, sans-serif;
+  transition: background 0.3s;
 }
 
 .page-header h1 {
   margin: 0;
   font-size: 28px;
   font-weight: 700;
+  color: var(--text-primary); /* ← titre dynamique */
+  transition: color 0.3s;
 }
 
 .page-header p {
   margin-top: 6px;
-  color: #6b7280;
+  color: var(--text-secondary); /* ← sous-titre dynamique */
   font-size: 14px;
+  transition: color 0.3s;
 }
 
 .quick-filters {
@@ -135,6 +139,10 @@
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   overflow: hidden;
+}
+
+.dark .table-card {
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
 }
 
 .table-scroll {
@@ -391,6 +399,7 @@
 .error-message {
   color: #dc2626;
 }
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -420,6 +429,7 @@
 .modal-header h2 {
   margin: 0;
   font-size: 20px;
+  color: #1e293b;
 }
 
 .modal-header button {
@@ -427,6 +437,7 @@
   background: transparent;
   font-size: 26px;
   cursor: pointer;
+  color: #64748b;
 }
 
 .form-group {
@@ -437,6 +448,7 @@
   display: block;
   margin-bottom: 6px;
   font-weight: 600;
+  color: #374151;
 }
 
 .form-group input,
@@ -445,6 +457,7 @@
   padding: 10px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
+  font-size: 14px;
 }
 
 .modal-actions {
@@ -458,12 +471,14 @@
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  font-size: 14px;
 }
 
 .modal-actions button:last-child {
   background: #2563eb;
   color: white;
 }
+
 .email-modal-overlay {
   position: fixed;
   inset: 0;

@@ -19,25 +19,18 @@ import {
   Legend,
 } from "recharts";
 import "./StatisticsPage.css";
-import { io } from "socket.io-client";
-
-import { useAuth } from "../context/AuthContext"; // ← AJOUT
-import { api } from "../lib/api"; // ← AJOUT
+import { useAuth } from "../context/AuthContext";
+import { api } from "../lib/api";
+import { useSocket } from "../hooks/useSocket";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 import RapportCard from "../components/RapportCard";
 
-/* ══ HELPERS ══ */
 function fmt(n) {
   if (n === null || n === undefined) return "—";
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
   return String(n);
-}
-function parseJwt(token) {
-  try {
-    return JSON.parse(atob(token.split(".")[1]));
-  } catch {
-    return {};
-  }
 }
 
 const tooltipStyle = {
@@ -49,7 +42,6 @@ const tooltipStyle = {
   background: "#fff",
 };
 
-/* ══ ChartCard ══ */
 function ChartCard({ title, sub, children }) {
   return (
     <div className="card">
@@ -60,14 +52,14 @@ function ChartCard({ title, sub, children }) {
   );
 }
 
-/* ══ STATISTICS ══ */
 export default function Statistics() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-
-  const { token } = useAuth(); // ← MODIFIÉ : utilise AuthContext au lieu de localStorage direct
+  const { socketRef, connected } = useSocket();
+  const { token } = useAuth();
 
   const fraudHourData = stats?.fraudHourData || [];
   const scatterData = stats?.scatterData || [];
@@ -80,7 +72,6 @@ export default function Statistics() {
     if (!token) navigate("/", { replace: true });
   }, [token, navigate]);
 
-  // ─── Chargement initial avec api.js ───
   useEffect(() => {
     if (!token) return;
     api
@@ -90,53 +81,56 @@ export default function Statistics() {
         setLoading(false);
       })
       .catch(() => {
-        setError("Impossible de charger les statistiques.");
+        setError(t("statistics.error"));
         setLoading(false);
       });
-  }, [token]);
+  }, [token, t]);
 
-  // ─── WebSocket : refresh auto avec api.js ───
   useEffect(() => {
-    const socket = io("http://127.0.0.1:5000");
-    socket.on("new_transaction", () => {
+    if (!token || !connected) return;
+    const socket = socketRef.current;
+    if (!socket) return;
+    const handleRefresh = () =>
       api
         .get("/stats/advanced")
         .then((d) => setStats(d))
         .catch(console.error);
-    });
-    return () => socket.off("new_transaction");
-  }, [token]);
+    socket.on("new_transaction", handleRefresh);
+    socket.on("transaction_updated", handleRefresh);
+    socket.on("investigation_resolved", handleRefresh);
+    return () => {
+      socket.off("new_transaction", handleRefresh);
+      socket.off("transaction_updated", handleRefresh);
+      socket.off("investigation_resolved", handleRefresh);
+    };
+  }, [token, connected]);
 
-  const today = new Date().toLocaleDateString("fr-FR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  const today = new Date().toLocaleDateString(
+    i18n.language === "en" ? "en-US" : "fr-FR",
+    { weekday: "long", day: "numeric", month: "long" },
+  );
 
   return (
     <div className="stats-root">
       <main className="main-content">
-        {/* Header */}
         <div className="header-row">
           <div>
-            <h1 className="header-title">Statistiques & Analyses 📊</h1>
-            <p className="header-sub">Tableaux de bord analytiques — {today}</p>
+            <h1 className="header-title">{t("statistics.title")} 📊</h1>
+            <p className="header-sub">
+              {t("statistics.subtitle")} — {today}
+            </p>
           </div>
         </div>
 
         {error && <div className="error-box">⚠️ {error}</div>}
-
-        {/* Rapport card — gère son propre PDF */}
         <RapportCard stats={stats} loading={loading} />
 
-        {/* Grille des graphiques */}
         <div className="charts-grid">
-          {/* 1 — Fraudes par heure */}
           <ChartCard
-            title="Fraudes par heure de la journée"
-            sub="Distribution horaire — identifiez les pics d'activité frauduleuse"
+            title={t("statistics.fraudsByHour")}
+            sub={t("statistics.fraudsByHourSub")}
           >
-            <div id="chart-hour" style={{ width: "100%", height: 240 }}>
+            <div style={{ width: "100%", height: 240 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={fraudHourData}
@@ -165,7 +159,7 @@ export default function Statistics() {
                   />
                   <Tooltip
                     contentStyle={tooltipStyle}
-                    formatter={(v) => [v, "Fraudes"]}
+                    formatter={(v) => [v, t("dashboard.frauds")]}
                     labelFormatter={(l) => `${l}h00`}
                   />
                   <Bar dataKey="fraudes" radius={[4, 4, 0, 0]}>
@@ -181,12 +175,11 @@ export default function Statistics() {
             </div>
           </ChartCard>
 
-          {/* 2 — Montant / jour */}
           <ChartCard
-            title="Montant frauduleux / jour"
-            sub="Exposition financière journalière (MAD)"
+            title={t("statistics.amountByDay")}
+            sub={t("statistics.amountByDaySub")}
           >
-            <div id="chart-day" style={{ width: "100%", height: 240 }}>
+            <div style={{ width: "100%", height: 240 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={amountByDay}
@@ -225,7 +218,7 @@ export default function Statistics() {
                   />
                   <Tooltip
                     contentStyle={tooltipStyle}
-                    formatter={(v) => [fmt(v) + " MAD", "Montant"]}
+                    formatter={(v) => [fmt(v) + " MAD", t("statistics.amount")]}
                   />
                   <Area
                     type="monotone"
@@ -241,12 +234,11 @@ export default function Statistics() {
             </div>
           </ChartCard>
 
-          {/* 3 — Top villes */}
           <ChartCard
-            title="Top villes à risque"
-            sub="Nombre de fraudes par ville"
+            title={t("statistics.topCities")}
+            sub={t("statistics.topCitiesSub")}
           >
-            <div id="chart-city" style={{ width: "100%", height: 240 }}>
+            <div style={{ width: "100%", height: 240 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   layout="vertical"
@@ -278,7 +270,7 @@ export default function Statistics() {
                   />
                   <Tooltip
                     contentStyle={tooltipStyle}
-                    formatter={(v) => [v, "Fraudes"]}
+                    formatter={(v) => [v, t("dashboard.frauds")]}
                   />
                   <Bar dataKey="fraudes" radius={[0, 4, 4, 0]}>
                     {cityFraudData.map((_, i) => (
@@ -293,12 +285,11 @@ export default function Statistics() {
             </div>
           </ChartCard>
 
-          {/* 4 — Décisions humaines */}
           <ChartCard
-            title="Décisions humaines / jour"
-            sub="Approuvées vs refusées par les analystes"
+            title={t("statistics.decisionsByDay")}
+            sub={t("statistics.decisionsByDaySub")}
           >
-            <div id="chart-decisions" style={{ width: "100%", height: 240 }}>
+            <div style={{ width: "100%", height: 240 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={decisionsByDay}
@@ -336,7 +327,9 @@ export default function Statistics() {
                       paddingTop: 10,
                     }}
                     formatter={(v) =>
-                      v === "approuve" ? "Approuvées" : "Refusées"
+                      v === "approuve"
+                        ? t("statistics.approved")
+                        : t("statistics.refused")
                     }
                   />
                   <Bar
@@ -350,12 +343,11 @@ export default function Statistics() {
             </div>
           </ChartCard>
 
-          {/* 5 — Donut catégories */}
           <ChartCard
-            title="Fraudes par catégorie marchande"
-            sub="Répartition selon le type de commerce"
+            title={t("statistics.fraudsByCategory")}
+            sub={t("statistics.fraudsByCategorySub")}
           >
-            <div id="chart-category" style={{ width: "100%", height: 260 }}>
+            <div style={{ width: "100%", height: 260 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -393,24 +385,29 @@ export default function Statistics() {
             </div>
           </ChartCard>
 
-          {/* 6 — Scatter */}
           <ChartCard
-            title="Montant vs Score de risque"
-            sub="Corrélation entre montant de transaction et niveau de risque ML"
+            title={t("statistics.amountVsRisk")}
+            sub={t("statistics.amountVsRiskSub")}
           >
             <div className="scatter-legend">
-              {[
-                { color: "#10b981", label: "Transaction légitime" },
-                { color: "#ef4444", label: "Transaction frauduleuse" },
-              ].map(({ color, label }) => (
-                <div key={label} className="scatter-legend-item">
-                  <span
-                    className="scatter-legend-dot"
-                    style={{ background: color }}
-                  />
-                  <span className="scatter-legend-label">{label}</span>
-                </div>
-              ))}
+              <div className="scatter-legend-item">
+                <span
+                  className="scatter-legend-dot"
+                  style={{ background: "#10b981" }}
+                />
+                <span className="scatter-legend-label">
+                  {t("statistics.legitimate")}
+                </span>
+              </div>
+              <div className="scatter-legend-item">
+                <span
+                  className="scatter-legend-dot"
+                  style={{ background: "#ef4444" }}
+                />
+                <span className="scatter-legend-label">
+                  {t("statistics.fraudulent")}
+                </span>
+              </div>
             </div>
             <div style={{ width: "100%", height: 200 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -420,14 +417,14 @@ export default function Statistics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis
                     dataKey="montant"
-                    name="Montant"
+                    name={t("statistics.amount")}
                     type="number"
                     tick={{ fontSize: 11, fill: "#94a3b8" }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => fmt(v)}
                     label={{
-                      value: "Montant (MAD)",
+                      value: `${t("statistics.amount")} (MAD)`,
                       position: "insideBottom",
                       offset: -14,
                       fontSize: 11,
@@ -436,14 +433,14 @@ export default function Statistics() {
                   />
                   <YAxis
                     dataKey="risk_score"
-                    name="Risk score"
+                    name={t("statistics.riskScore")}
                     type="number"
                     domain={[0, 100]}
                     tick={{ fontSize: 11, fill: "#94a3b8" }}
                     axisLine={false}
                     tickLine={false}
                     label={{
-                      value: "Score risque",
+                      value: t("statistics.riskScore"),
                       angle: -90,
                       position: "insideLeft",
                       offset: 16,
@@ -467,13 +464,17 @@ export default function Statistics() {
                               color: d.fraud === 1 ? "#ef4444" : "#10b981",
                             }}
                           >
-                            {d.fraud === 1 ? "🚨 Fraude" : "✅ Légitime"}
+                            {d.fraud === 1
+                              ? `🚨 ${t("statistics.fraudulent")}`
+                              : `✅ ${t("statistics.legitimate")}`}
                           </div>
                           <div style={{ color: "#374151" }}>
-                            Montant : <strong>{fmt(d.montant)} MAD</strong>
+                            {t("statistics.amount")} :{" "}
+                            <strong>{fmt(d.montant)} MAD</strong>
                           </div>
                           <div style={{ color: "#374151" }}>
-                            Risk score : <strong>{d.risk_score}</strong>
+                            {t("statistics.riskScore")} :{" "}
+                            <strong>{d.risk_score}</strong>
                           </div>
                         </div>
                       );

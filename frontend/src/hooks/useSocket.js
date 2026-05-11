@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
 const SOCKET_URL = "http://127.0.0.1:5000";
 
 export function useSocket() {
   const socketRef = useRef(null);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     const socket = io(SOCKET_URL, {
@@ -16,10 +17,12 @@ export function useSocket() {
 
     socket.on("connect", () => {
       console.log("✅ WebSocket connecté");
+      setConnected(true);
     });
 
     socket.on("disconnect", () => {
       console.log("❌ WebSocket déconnecté");
+      setConnected(false);
     });
 
     socket.on("connect_error", (err) => {
@@ -31,5 +34,5 @@ export function useSocket() {
     };
   }, []);
 
-  return socketRef;
+  return { socketRef, connected };
 }

@@ -405,20 +405,18 @@
 .logout-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border: none;
-  background: none;
-
-  color: #ffffff;
-  font-size: 0px;
+  gap: 8px; /* ← Augmenté pour plus d'espace */
+  padding: 8px 16px; /* ← Plus confortable */
+  border: 1px solid #e2e8f0; /* ← Bordure visible */
+  border-radius: 10px;
+  background: #fff;
+  color: #64748b; /* ← Couleur visible */
+  font-size: 12px; /* ← Taille normale */
+  font-weight: 600;
   cursor: pointer;
   font-family: "DM Mono", monospace;
-  letter-spacing: 0.07em;
-  transition:
-    border-color 0.15s,
-    color 0.15s,
-    background 0.15s;
+  letter-spacing: 0.05em;
+  transition: all 0.15s ease;
 }
 .logout-btn:hover {
   border: none;

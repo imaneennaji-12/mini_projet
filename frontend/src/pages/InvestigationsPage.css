@@ -1,7 +1,5 @@
 /* =========================================
    FRAUDSHIELD INVESTIGATIONS PAGE
-   Version simplifiée — Uniquement Refuser
-   Design System: risk-aware-ui (shadcn/Tailwind)
    ========================================= */
 
 :root {
@@ -40,16 +38,19 @@
 /* ─── Layout ─── */
 .investigations-page {
   padding: 28px 32px;
-  background: hsl(var(--background));
+  background: var(--bg-primary); /* ← fond dynamique */
   min-height: 100vh;
   font-family:
     "Inter",
     system-ui,
     -apple-system,
     sans-serif;
-  color: hsl(var(--foreground));
+  color: var(--text-primary); /* ← texte dynamique */
   max-width: 1400px;
   margin: 0 auto;
+  transition:
+    background 0.3s,
+    color 0.3s;
 }
 
 /* ─── Header ─── */
@@ -64,15 +65,17 @@
 .page-title {
   font-size: 26px;
   font-weight: 800;
-  color: hsl(var(--foreground));
+  color: var(--text-primary); /* ← dynamique */
   margin: 0 0 6px 0;
   letter-spacing: -0.02em;
+  transition: color 0.3s;
 }
 
 .page-subtitle {
   font-size: 14px;
-  color: hsl(var(--muted-foreground));
+  color: var(--text-secondary); /* ← dynamique */
   margin: 0;
+  transition: color 0.3s;
 }
 
 .header-actions {
@@ -212,6 +215,10 @@
   gap: 16px;
   box-shadow: var(--shadow-card);
   transition: all 0.2s;
+}
+
+.dark .stat-card {
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
 }
 
 .stat-card:hover {
@@ -387,6 +394,10 @@
   transition: all 0.2s;
 }
 
+.dark .investigation-card {
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+}
+
 .investigation-card:hover {
   box-shadow: var(--shadow-elevated);
 }
@@ -394,6 +405,12 @@
 .investigation-card.card-critical {
   border-color: hsl(0 84% 60% / 0.3);
   box-shadow: var(--shadow-alert);
+}
+
+.dark .investigation-card.card-critical {
+  box-shadow:
+    0 0 0 1px hsl(0 84% 60% / 0.3),
+    0 4px 16px hsl(0 84% 60% / 0.25);
 }
 
 .investigation-card.expanded {
@@ -523,7 +540,6 @@
   color: hsl(var(--foreground));
 }
 
-/* Icon button avec hover danger */
 .icon-btn.danger-hover {
   color: hsl(var(--muted-foreground));
   transition: all 0.2s;
@@ -698,7 +714,7 @@
   font-weight: 500;
 }
 
-/* Action Buttons — Single Action */
+/* Action Buttons */
 .action-buttons {
   display: flex;
   flex-wrap: wrap;

@@ -1,17 +1,18 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../hooks/useSocket";
+import { useTranslation } from "react-i18next"; // ← AJOUT
 import {
   Bell,
   ShieldAlert,
   Volume2,
   VolumeX,
   AlertTriangle,
-  Menu, // ← AJOUT
-  LogOut, // ← AJOUT
+  Menu,
+  LogOut,
 } from "lucide-react";
 import "./Topbar.css";
-import { io } from "socket.io-client";
 
 /* ── Audio Engine ── */
 const AudioEngine = {
@@ -50,7 +51,6 @@ const AudioEngine = {
       this.pendingAlert = true;
       return;
     }
-
     const ctx = this.ctx,
       now = ctx.currentTime;
     const osc1 = ctx.createOscillator(),
@@ -81,9 +81,10 @@ const AudioEngine = {
 };
 
 export default function Topbar({ openSidebar }) {
-  // ← AJOUT prop openSidebar
+  const { t } = useTranslation(); // ← AJOUT
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { socketRef, connected } = useSocket();
 
   const [alerts, setAlerts] = useState([]);
   const [openNotif, setOpenNotif] = useState(false);
@@ -104,7 +105,29 @@ export default function Topbar({ openSidebar }) {
     ? user.role.charAt(0).toUpperCase() + user.role.slice(1)
     : "Analyste";
 
-  /* Audio unlock */
+  /* ── Fetch alerts ── */
+  const fetchAlerts = useCallback(async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:5000/api/notifications");
+      const data = await res.json();
+      setAlerts(data);
+    } catch (err) {
+      console.error("⛔ Erreur fetch notifications:", err);
+    }
+  }, []);
+
+  /* ── Trigger alert ── */
+  const triggerAlert = useCallback(
+    (data) => {
+      if (soundEnabled) AudioEngine.playFraudAlert();
+      setHighRiskFlash(true);
+      setTimeout(() => setHighRiskFlash(false), 2000);
+      setOpenNotif(true);
+    },
+    [soundEnabled],
+  );
+
+  /* ── Audio unlock ── */
   useEffect(() => {
     const unlock = () => AudioEngine.init();
     document.addEventListener("click", unlock, { once: true });
@@ -115,7 +138,7 @@ export default function Topbar({ openSidebar }) {
     };
   }, []);
 
-  /* Clic extérieur */
+  /* ── Clic extérieur ── */
   useEffect(() => {
     if (!openNotif) return;
     const handle = (e) => {
@@ -131,7 +154,7 @@ export default function Topbar({ openSidebar }) {
     return () => document.removeEventListener("mousedown", handle);
   }, [openNotif]);
 
-  /* Inactivité */
+  /* ── Inactivité ── */
   const resetInactivity = useCallback(() => {
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     inactivityTimerRef.current = setTimeout(
@@ -143,32 +166,44 @@ export default function Topbar({ openSidebar }) {
     if (openNotif) resetInactivity();
   }, [openNotif, resetInactivity]);
 
-  /* Fetch + Socket */
+  /* ── Chargement initial HTTP ── */
   useEffect(() => {
-    const fetchAlerts = async () => {
-      try {
-        const res = await fetch("http://127.0.0.1:5000/api/notifications");
-        const data = await res.json();
-        setAlerts(data);
-      } catch (err) {
-        console.error("Erreur notifications:", err);
+    fetchAlerts();
+  }, [fetchAlerts]);
+
+  /* ── WebSocket temps réel ── */
+  useEffect(() => {
+    if (!connected) return;
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    const onNewTransaction = (tx) => {
+      fetchAlerts();
+      if ((tx?.risk_score || tx?.score || 0) >= 0.8 || tx?.is_high_risk) {
+        triggerAlert(tx);
       }
     };
-    fetchAlerts();
-    const socket = io("http://127.0.0.1:5000");
-    socket.on("new_transaction", (tx) => {
-      fetchAlerts();
-      if ((tx?.risk_score || tx?.score || 0) >= 0.8 || tx?.is_high_risk)
-        triggerAlert(tx);
-    });
-    socket.on("high_risk_alert", (data) => {
-      fetchAlerts();
-      triggerAlert(data);
-    });
-    return () => socket.disconnect();
-  }, []);
 
-  /* Détection nouvelles alertes */
+    const onTransactionUpdated = (data) => {
+      fetchAlerts();
+    };
+
+    const onInvestigationResolved = (data) => {
+      fetchAlerts();
+    };
+
+    socket.on("new_transaction", onNewTransaction);
+    socket.on("transaction_updated", onTransactionUpdated);
+    socket.on("investigation_resolved", onInvestigationResolved);
+
+    return () => {
+      socket.off("new_transaction", onNewTransaction);
+      socket.off("transaction_updated", onTransactionUpdated);
+      socket.off("investigation_resolved", onInvestigationResolved);
+    };
+  }, [connected, socketRef, fetchAlerts, triggerAlert]);
+
+  /* ── Détection nouvelles alertes ── */
   useEffect(() => {
     const newOnes = alerts.filter(
       (a) => !prevAlertsRef.current.find((p) => p.id === a.id),
@@ -181,17 +216,7 @@ export default function Topbar({ openSidebar }) {
       }
     });
     prevAlertsRef.current = alerts;
-  }, [alerts]);
-
-  const triggerAlert = useCallback(
-    (data) => {
-      if (soundEnabled) AudioEngine.playFraudAlert();
-      setHighRiskFlash(true);
-      setTimeout(() => setHighRiskFlash(false), 2000);
-      setOpenNotif(true);
-    },
-    [soundEnabled],
-  );
+  }, [alerts, triggerAlert]);
 
   const highRiskCount = alerts.filter(
     (a) => a.risk_score >= 0.8 || a.priority === "high" || a.is_fraud,
@@ -200,11 +225,10 @@ export default function Topbar({ openSidebar }) {
   return (
     <nav className={`navbar ${highRiskFlash ? "navbar--alert" : ""}`}>
       <div className="nav-left">
-        {/* ← BOUTON MENU MOBILE */}
         <button
           className="mobile-menu-btn"
           onClick={openSidebar}
-          title="Ouvrir le menu"
+          title={t("topbar.openMenu")}
         >
           <Menu size={20} strokeWidth={2} />
         </button>
@@ -213,7 +237,14 @@ export default function Topbar({ openSidebar }) {
           className={`status-dot ${highRiskFlash ? "status-dot--alert" : ""}`}
         />
         <span className="status-label">
-          {highRiskFlash ? "⚠️ ALERTE FRAUDE DÉTECTÉE" : "Surveillance active"}
+          {highRiskFlash
+            ? `⚠️ ${t("topbar.fraudAlertDetected")}`
+            : t("topbar.activeSurveillance")}
+          {connected && (
+            <span style={{ marginLeft: 8, fontSize: 10, opacity: 0.6 }}>
+              ● WS
+            </span>
+          )}
         </span>
       </div>
 
@@ -256,11 +287,11 @@ export default function Topbar({ openSidebar }) {
                   <div>
                     <div className="notif-header-title">
                       {highRiskCount > 0
-                        ? `🔴 ${highRiskCount} Alerte${highRiskCount > 1 ? "s" : ""} Critique${highRiskCount > 1 ? "s" : ""}`
-                        : "Alertes de fraude"}
+                        ? `🔴 ${highRiskCount} ${highRiskCount > 1 ? t("topbar.criticalAlerts") : t("topbar.criticalAlert")}`
+                        : t("topbar.fraudAlerts")}
                     </div>
                     <div className="notif-header-sub">
-                      TEMPS RÉEL · CONFIDENTIEL
+                      {t("topbar.realTimeConfidential")}
                     </div>
                   </div>
                 </div>
@@ -272,7 +303,9 @@ export default function Topbar({ openSidebar }) {
                       setSoundEnabled(!soundEnabled);
                     }}
                     title={
-                      soundEnabled ? "Désactiver le son" : "Activer le son"
+                      soundEnabled
+                        ? t("topbar.disableSound")
+                        : t("topbar.enableSound")
                     }
                   >
                     {soundEnabled ? (
@@ -286,7 +319,9 @@ export default function Topbar({ openSidebar }) {
                       className={`notif-count-pill ${highRiskCount > 0 ? "notif-count-pill--urgent" : ""}`}
                     >
                       {alerts.length}{" "}
-                      {alerts.length === 1 ? "ACTIVE" : "ACTIVES"}
+                      {alerts.length === 1
+                        ? t("topbar.activeSingular")
+                        : t("topbar.activePlural")}
                     </span>
                   )}
                 </div>
@@ -297,7 +332,7 @@ export default function Topbar({ openSidebar }) {
                   <div className="notif-empty">
                     <div className="notif-empty-icon">🛡️</div>
                     <div className="notif-empty-text">
-                      Aucune alerte détectée
+                      {t("topbar.noAlertDetected")}
                     </div>
                   </div>
                 ) : (
@@ -329,10 +364,10 @@ export default function Topbar({ openSidebar }) {
                                     size={12}
                                     className="inline-icon"
                                   />{" "}
-                                  Transaction suspecte — RISQUE ÉLEVÉ
+                                  {t("topbar.suspiciousTransactionHigh")}
                                 </>
                               ) : (
-                                "Transaction suspecte"
+                                t("topbar.suspiciousTransaction")
                               )}
                             </div>
                             <div className="notif-item-meta">
@@ -341,13 +376,14 @@ export default function Topbar({ openSidebar }) {
                               </span>
                               <span className="notif-item-sep" />
                               <span className="notif-item-city">{a.city}</span>
-                              {a.risk_score && (
+                              {a.risk_score != null && (
                                 <>
                                   <span className="notif-item-sep" />
                                   <span
                                     className={`notif-risk-score ${isHigh ? "notif-risk-score--high" : ""}`}
                                   >
-                                    Risque: {Math.round(a.risk_score * 100)}%
+                                    {t("topbar.risk")}:{" "}
+                                    {Math.round(a.risk_score * 100)}%
                                   </span>
                                 </>
                               )}
@@ -356,7 +392,7 @@ export default function Topbar({ openSidebar }) {
                           <span
                             className={`notif-item-badge ${isHigh ? "notif-item-badge--urgent" : ""}`}
                           >
-                            {isHigh ? "CRITIQUE" : "FRAUDE"}
+                            {isHigh ? t("topbar.critical") : t("topbar.fraud")}
                           </span>
                         </div>
                       );
@@ -371,7 +407,7 @@ export default function Topbar({ openSidebar }) {
                   setOpenNotif(false);
                 }}
               >
-                Voir toutes les alertes →
+                {t("topbar.seeAllAlerts")} →
               </div>
             </div>
           )}
@@ -393,11 +429,15 @@ export default function Topbar({ openSidebar }) {
           </div>
         </div>
 
-        {/* Logout — icône Lucide + texte masqué sur mobile */}
-        <button className="logout-btn" onClick={logout} title="Déconnexion">
+        <button
+          className="logout-btn"
+          onClick={logout}
+          title={t("sidebar.logout")}
+        >
           <LogOut size={16} strokeWidth={2} className="logout-icon" />
-          {/* <span className="logout-icon">⏻</span> */}
-          <span className="logout-text">DÉCONNEXION</span>
+          <span className="logout-text">
+            {t("sidebar.logout").toUpperCase()}
+          </span>
         </button>
       </div>
     </nav>
